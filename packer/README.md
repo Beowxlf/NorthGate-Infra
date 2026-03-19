@@ -1,5 +1,14 @@
-# Packer
+# packer/
 
-Image build templates and related assets.
+## Purpose
+`packer/` contains image build definitions used to produce reproducible base VM images for the local lab.
 
-Use this directory for reproducible golden image creation and versioning.
+## What belongs here
+- Packer templates and variable files.
+- Provisioner scripts used during image creation.
+- Image build metadata and versioning notes.
+
+## What does NOT belong here
+- Runtime configuration that should be managed by Ansible after provisioning.
+- Environment-specific infrastructure state.
+- Application deployment artifacts.

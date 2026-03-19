@@ -1,14 +1,24 @@
-# Documentation
+# docs/
 
-This directory is the authoritative documentation system for `northgate-infra`.
+## Purpose
+`docs/` is the authoritative specification for NorthGate infrastructure intent, architecture, standards, environments, and operations.
 
-It is organized by topic and maturity so humans and AI agents can reliably discover intent, standards, and operating practices.
+## What belongs here
+- Deterministic infrastructure design and constraints.
+- Environment definitions and promotion rules.
+- Operational workflows and recovery procedures.
+- Architectural decision records.
 
-## Sections
-- `00-overview/` — mission, scope, and success criteria.
-- `01-architecture/` — architecture diagrams, boundaries, and principles.
-- `02-infrastructure/` — IaC structure, cloud resources, and dependencies.
-- `03-configuration/` — configuration standards and parameter strategy.
-- `04-environments/` — environment topology and differences.
-- `05-operations/` — runbooks, SRE processes, and incident handling.
-- `06-decisions/` — architectural decision records (ADRs).
+## What does NOT belong here
+- Generated CI logs or runtime output.
+- Application feature documentation owned by app repositories.
+- Undocumented drafts that are not tied to implemented or planned infrastructure.
+
+## Section map
+- `00-overview/` repository mission, scope, success criteria.
+- `01-architecture/` architecture model, network design, environment model.
+- `02-infrastructure/` compute/network/storage implementation definitions.
+- `03-configuration/` Ansible and security baseline standards.
+- `04-environments/` environment-specific definitions.
+- `05-operations/` deployment, change, and recovery workflows.
+- `06-decisions/` decision log.
