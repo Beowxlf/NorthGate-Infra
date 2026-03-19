@@ -1,24 +1,29 @@
-# Networking Infrastructure
+# Networking
 
-## Provisioning Responsibilities
-Terraform/OpenTofu manages:
-- Segment/subnet creation.
-- Route and gateway associations.
-- Security group or firewall policy primitives.
-- Host interface assignments.
+## Networking Responsibilities by Layer
 
-## Module Boundaries
-- `network-core` module: shared network primitives.
-- `network-segmentation` module: environment segment definitions and policy attachments.
-- `network-access` module: ingress and restricted egress rules.
+### Provisioning (Terraform/OpenTofu)
+- Create environment segments and network interfaces.
+- Configure route tables and firewall/security policy objects.
+- Output stable addressing and DNS-relevant host records.
 
-## Naming Convention
-- Network object format: `ng-<env>-<segment>-<type>`.
-- Examples:
-  - `ng-test-core-mgmt-net`
-  - `ng-app-hosting-svc-fw`
+### Configuration (Ansible)
+- Apply host firewall baselines.
+- Configure resolver settings and service bind addresses.
+- Enforce service-specific port exposure rules.
 
-## Guardrails
-- No overlapping CIDR blocks across environments.
-- All ingress rules require source and destination scope.
-- Catch-all allow rules are disallowed.
+## Required Connectivity Paths
+- `workbench` control node -> all managed nodes for configuration.
+- all nodes -> DNS and time services in `test-core`.
+- app hosts -> DB and proxy paths in `app-hosting`.
+- all monitored nodes -> Wazuh/Prometheus endpoints.
+
+## Addressing Standard
+- CIDR allocations are environment-specific and non-overlapping.
+- Static assignments are reserved for foundational services; dynamic pools for auxiliary nodes.
+- All address assignments are declared as code inputs and must be reproducible.
+
+## Security Segmentation Requirements
+- Default deny between environment segments; explicit allow by service dependency.
+- No direct unrestricted ingress to `app-hosting` management interfaces.
+- Security test tooling traffic is constrained to approved windows and target scopes.

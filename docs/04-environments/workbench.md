@@ -1,24 +1,22 @@
-# Environment: workbench
+# workbench Environment
 
 ## Purpose
-`workbench` is a collaborative sandbox for infrastructure engineers to test candidate changes before stable promotion.
+`workbench` is the operator and security-testing environment that hosts the automation control plane and adversary simulation tooling.
 
-## Characteristics
-- Semi-persistent environment.
-- Supports temporary feature branches and integration experiments.
-- Higher capacity than `test-core`.
+## Mandatory Services
+- Jump host.
+- Control node for Terraform/OpenTofu and Ansible execution.
+- Caldera and approved attack simulation host.
 
-## Expected VM Roles
-- `ctl`: 1-2 nodes
-- `cfg`: 1 node
-- `app`: 2+ nodes for integration scenarios
-- `obs`: 1 node
+## Responsibilities
+- Provide controlled administrative entry path.
+- Execute provisioning/configuration workflows against all environments.
+- Run security validation scenarios in bounded scope.
 
-## Change Policy
-- Changes must originate in Git branch and pass CI before apply.
-- Temporary experiments must be cleaned up or promoted.
+## Boundary Rules
+- Must not host production application runtime workloads.
+- Maintains privileged connectivity only as required for managed operations.
 
-## Validation Gates
-- Baseline service health checks.
-- Network policy validation across mgmt/svc/ingress segments.
-- Integration-level application deployment checks.
+## Phase Alignment
+- Core delivery in phase 2 (control/jump).
+- Security expansion in phase 4 (Caldera + simulation tooling).

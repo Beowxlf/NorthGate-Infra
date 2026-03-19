@@ -1,43 +1,27 @@
 # Service Catalog
 
-## Scope
-This catalog defines the mandatory and optional services required to implement the NorthGate lab environments (`test-core`, `workbench`, `app-hosting`) as deterministic infrastructure managed from Git.
+## Catalog Purpose
+Defines the authoritative list of infrastructure services, their ownership layer, dependencies, and roadmap phase.
 
-## Service Inventory
+## Service Matrix
 
-| Service | Category | Purpose | Environment Placement | Dependencies | Mandatory | Future IaC Owner Layer |
-|---|---|---|---|---|---|---|
-| Domain Controller (AD DS) | Core Infrastructure | Central identity provider for user, host, and service authentication/authorization. | `test-core` | DNS, Time Synchronization, Firewall | Yes | Mixed (Terraform/OpenTofu + Ansible) |
-| DNS Resolver/Authoritative Service | Core Infrastructure | Name resolution for all internal services and host-to-service communication. | `test-core` (primary), optional secondary in `workbench` | Firewall, Time Synchronization | Yes | Mixed (Terraform/OpenTofu + Ansible) |
-| Firewall Gateway | Core Infrastructure | Enforces inter-environment segmentation and egress/ingress policy boundaries. | `test-core` edge and inter-segment routing path | None (foundational), Time Synchronization | Yes | Mixed (Terraform/OpenTofu + Ansible) |
-| Jump Host (Bastion) | Core Infrastructure | Controlled administrative entry point for operators and automation troubleshooting. | `workbench` | Domain Controller, DNS, Firewall, Time Synchronization | Yes | Mixed (Terraform/OpenTofu + Ansible + Packer) |
-| Control Node (IaC/Automation Orchestrator) | Core Infrastructure | Runs Terraform/OpenTofu, Ansible, and pipeline tasks against all environments. | `workbench` | DNS, Firewall, Jump Host, Secret Management, Time Synchronization | Yes | Mixed (Terraform/OpenTofu + Ansible + Packer) |
-| Time Synchronization (NTP/Chrony) | Core Infrastructure | Maintains consistent time for Kerberos, TLS validation, logging correlation, and alerting. | `test-core` source; clients in all environments | Firewall | Yes | Ansible |
-| Wazuh Manager/Indexer/Dashboard | Observability & Monitoring | Centralized security event collection, correlation, and detection management. | `test-core` | DNS, Time Synchronization, Firewall, Storage, Domain Controller (for auth integration if enabled) | Yes | Mixed (Terraform/OpenTofu + Ansible) |
-| Wazuh Agent | Observability & Monitoring | Host-based telemetry and detection endpoint for servers across environments. | All managed nodes in `test-core`, `workbench`, `app-hosting` | Wazuh Manager, DNS, Time Synchronization, Firewall | Yes | Ansible |
-| Prometheus | Observability & Monitoring | Metrics scraping and alert-rule execution for platform and service health. | `test-core` | DNS, Time Synchronization, Firewall | Yes | Mixed (Terraform/OpenTofu + Ansible) |
-| Grafana | Observability & Monitoring | Operational dashboards and security/infra visualization over metrics and logs. | `test-core` | Prometheus, DNS, Time Synchronization, Firewall | Yes | Mixed (Terraform/OpenTofu + Ansible) |
-| MITRE Caldera Server | Security & Adversary Simulation | Controlled adversary emulation to validate detections and response paths. | `workbench` (management), reachable to controlled targets | DNS, Firewall, Time Synchronization, Domain identities (if domain tests required) | Yes | Mixed (Terraform/OpenTofu + Ansible) |
-| Attack Box | Security & Adversary Simulation | Operator endpoint used to execute offensive validation scenarios in isolated scope. | `workbench` | DNS, Firewall, Jump Host, Time Synchronization | Yes | Mixed (Terraform/OpenTofu + Ansible + Packer) |
-| Case Management / Analysis Tooling | Security & Adversary Simulation | Optional incident tracking and investigative workflow support. | `test-core` or `workbench` | Wazuh, Prometheus/Grafana, DNS, Firewall | No (Future) | Mixed |
-| Reverse Proxy | Application Hosting | Entry point for ScrambleIQ HTTP/S traffic; routes requests to application runtime. | `app-hosting` | DNS, Firewall, Time Synchronization, Secret Management | Yes | Mixed (Terraform/OpenTofu + Ansible) |
-| Application Host (ScrambleIQ Runtime) | Application Hosting | Runs ScrambleIQ service logic in test environment. | `app-hosting` | Reverse Proxy, Database, Container Runtime, DNS, Time Synchronization, Secret Management | Yes | Mixed (Terraform/OpenTofu + Ansible + Packer) |
-| Database Service | Application Hosting | Persistent data store required by ScrambleIQ application state. | `app-hosting` | DNS, Time Synchronization, Storage, Backup Strategy, Secret Management, Firewall | Yes | Mixed (Terraform/OpenTofu + Ansible) |
-| Worker Service (Optional) | Application Hosting | Asynchronous/background job execution for ScrambleIQ workloads. | `app-hosting` | Application Host, Database, Container Runtime, DNS, Time Synchronization | No (Phase 2) | Mixed (Terraform/OpenTofu + Ansible) |
-| Container Runtime | Application Hosting | Standardized execution environment for application and optional worker containers. | `app-hosting` | OS baseline image, Storage, Time Synchronization | Yes | Ansible + Packer |
-| File Services (SMB/NFS or equivalent internal share) | Supporting Services | Shared storage for configs, artifacts, and controlled data exchange where required. | `test-core` (or dedicated infra node) | DNS, Firewall, Backup Strategy, Time Synchronization, Domain Controller (if ACL integration) | Phase 2 | Mixed (Terraform/OpenTofu + Ansible) |
-| Backup Service/Policy Execution | Supporting Services | Scheduled backups and restore points for AD, DB, configuration state, and telemetry data. | Cross-environment policy; backup target in `test-core` | Storage, DNS, Time Synchronization, Secret Management, Firewall | Yes | Ansible |
-| Secret Management Approach (Vaulted files + Ansible Vault baseline) | Supporting Services | Protects credentials, tokens, and sensitive variables used by automation and services. | Control-plane process anchored in `workbench` control node | Control Node, Backup Strategy, Access Controls, Time Synchronization | Yes | Ansible |
+| Service | Environments | Primary Responsibility | Depends On | IaC Ownership | Roadmap Phase |
+|---|---|---|---|---|---|
+| Domain Controller (AD DS) | `test-core` | Central identity and directory services | DNS, time, firewall policy | Terraform/OpenTofu + Ansible | 2 |
+| DNS | `test-core` (+ clients everywhere) | Internal name resolution | network, time | Terraform/OpenTofu + Ansible | 2 |
+| Control Node | `workbench` | Executes Terraform/OpenTofu and Ansible workflows | DNS, network reachability, secrets baseline | Terraform/OpenTofu + Ansible + Packer | 2 |
+| Wazuh Manager Stack | `test-core` | Security telemetry aggregation and detection | DNS, storage, time | Terraform/OpenTofu + Ansible | 2 |
+| Wazuh Agents | all | Endpoint telemetry and log forwarding | Wazuh manager, DNS | Ansible | 2 |
+| Prometheus | `test-core` | Metrics collection and alert evaluation | DNS, service discovery endpoints | Terraform/OpenTofu + Ansible | 3 |
+| Grafana | `test-core` | Dashboarding and observability visualization | Prometheus, DNS | Terraform/OpenTofu + Ansible | 3 |
+| Caldera | `workbench` | Controlled adversary simulation orchestration | DNS, policy-approved target reachability | Terraform/OpenTofu + Ansible | 4 |
+| Attack Simulation Host | `workbench` | Executes security validation scenarios | Caldera, network policy | Terraform/OpenTofu + Ansible + Packer | 4 |
+| Reverse Proxy | `app-hosting` | Entry point routing and TLS termination for app traffic | DNS, certificates/secrets, app runtime | Terraform/OpenTofu + Ansible | 5 |
+| ScrambleIQ Runtime Host | `app-hosting` | Executes application service workload | reverse proxy, DB, DNS | Terraform/OpenTofu + Ansible + Packer | 5 |
+| Database | `app-hosting` | Persistent application data | storage, backup policy, DNS | Terraform/OpenTofu + Ansible | 5 |
+| Optional Worker | `app-hosting` | Background task execution | app runtime, DB | Terraform/OpenTofu + Ansible | 5 |
 
-## Implementation Phasing
-
-- **Phase 1 (mandatory platform viability):** Domain Controller, DNS, Firewall, Jump Host, Control Node, Time Synchronization, Wazuh stack + agents, Prometheus, Grafana, MITRE Caldera, Attack Box, Reverse Proxy, Application Host, Database, Container Runtime, Backup Strategy, Secret Management.
-- **Phase 2 (scale and maturity):** Worker Service, File Services, DNS secondary/high-availability variants, expanded observability retention tiers.
-- **Future-state (optional expansion):** Case management/analysis tooling, advanced SOAR-style integration points.
-
-## Ownership Boundary Notes
-
-- **Terraform/OpenTofu:** Node/network primitives, subnet and firewall objects, VM lifecycle, disk/network attachments.
-- **Packer:** Reusable base images for jump host, control node, attack box, and app host OS baselines.
-- **Ansible:** Service installation, hardening, runtime configuration, user/group policy, backup jobs, and operational runbooks-as-code.
-- **Mixed:** Any service requiring both resource provisioning and post-provision configuration.
+## Layer Responsibility Rules
+- Provisioning defines existence and connectivity of infrastructure resources.
+- Configuration defines service installation and policy-compliant runtime behavior.
+- Application workflow defines deployment sequence and runtime release state.

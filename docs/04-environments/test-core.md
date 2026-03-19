@@ -1,24 +1,22 @@
-# Environment: test-core
+# test-core Environment
 
 ## Purpose
-`test-core` is the first validation target for infrastructure and configuration changes.
+`test-core` is the foundational environment for identity, shared service control plane, and base observability.
 
-## Characteristics
-- Disposable environment with minimal footprint.
-- Fast provision and teardown cycle.
-- Representative network segmentation with reduced capacity.
+## Mandatory Services
+- Domain Controller and DNS.
+- Wazuh manager stack.
+- Prometheus and Grafana.
 
-## Expected VM Roles
-- `ctl`: 1 node
-- `cfg`: 1 node (or combined with `ctl` for minimal footprint)
-- `app`: 1-2 nodes for smoke validation
-- `obs`: optional lightweight monitoring node
+## Responsibilities
+- Provide identity and naming services consumed by all other environments.
+- Host central monitoring and security telemetry services.
+- Act as first target for foundational IaC validation.
 
-## Change Policy
-- Direct commits to environment definitions are allowed through standard PR flow.
-- Frequent rebuilds are expected; persistent data is not required.
+## Inputs and Outputs
+- **Inputs:** core Terraform/OpenTofu modules, Ansible baseline roles, service role vars.
+- **Outputs:** reachable identity/DNS endpoints, telemetry endpoints, validated baseline for promotion.
 
-## Validation Gates
-- Terraform/OpenTofu plan/apply succeeds.
-- Ansible baseline playbook succeeds with no unhandled changes on second run.
-- Smoke checks pass for core services.
+## Phase Alignment
+- Primary implementation in phases 2-3.
+- Hardened and validated through phases 6-7.

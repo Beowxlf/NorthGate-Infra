@@ -1,24 +1,27 @@
-# Failure Recovery
+# Failure and Recovery
 
-## Failure Categories
-1. **Provisioning failure:** Terraform/OpenTofu apply failed or partial state.
-2. **Configuration failure:** Ansible role execution failed or host drift detected.
-3. **Service failure:** application unhealthy after deployment.
-4. **State/artifact loss:** Terraform state backend or image artifacts unavailable.
+## Recovery Objectives
+- Restore minimum viable platform in dependency order.
+- Preserve deterministic behavior during rebuild and restore.
+- Validate recoverability as a recurring operational exercise (phase 7).
 
-## Recovery Strategy
-- Stop further promotion.
-- Capture failure evidence (logs, state output, host diagnostics).
-- Restore known-good state from Git-tagged release or rollback commit.
-- Re-run provisioning/configuration in controlled sequence.
+## Dependency-Based Recovery Order
+1. **Network and foundational provisioning primitives**
+2. **Identity and naming (Domain Controller, DNS, time)**
+3. **Control-plane access (jump host, control node)**
+4. **Security/observability (Wazuh, Prometheus, Grafana)**
+5. **Security testing tooling (Caldera stack)**
+6. **Application hosting (proxy, app, DB, workers)**
 
-## Minimum Recovery Runbooks
-- Terraform/OpenTofu state restore and lock recovery.
-- Ansible re-convergence run for failed host groups.
-- Application rollback to previous release artifact.
-- Backup restore test for persistent storage.
+## Failure Scenarios to Validate
+- Complete environment rebuild from zero.
+- Loss of control node and restoration of automation capability.
+- Identity service outage with dependent service restoration.
+- Database failure with application recovery.
+- Telemetry stack outage and monitoring restoration.
 
-## Recovery Validation
-- Infrastructure state matches expected plan.
-- Configuration converges without unplanned drift.
-- Service health checks return healthy status.
+## Recovery Procedure Rules
+- Execute infrastructure recreation through Terraform/OpenTofu first.
+- Reapply Ansible roles in documented dependency order.
+- Restore data from approved backups before opening dependent services.
+- Record incident timeline, root cause, and permanent corrective IaC updates.

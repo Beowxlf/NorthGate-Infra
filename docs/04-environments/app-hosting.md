@@ -1,24 +1,23 @@
-# Environment: app-hosting
+# app-hosting Environment
 
 ## Purpose
-`app-hosting` provides stable long-running infrastructure for lab-hosted applications.
+`app-hosting` runs application-facing infrastructure components for the ScrambleIQ stack.
 
-## Characteristics
-- Persistent environment with controlled release windows.
-- Backup and restore procedures are mandatory.
-- Capacity and availability prioritized over rapid churn.
+## Mandatory Services
+- Reverse proxy.
+- ScrambleIQ application host.
+- Database service.
+- Optional worker service (enabled by workload requirement).
 
-## Expected VM Roles
-- `ctl`: highly controlled administrative node(s)
-- `cfg`: configuration execution node(s)
-- `app`: multiple service hosts
-- `obs`: dedicated monitoring/logging host(s)
+## Responsibilities
+- Host and expose application runtime through controlled ingress.
+- Persist application data with backup-integrated storage.
+- Consume shared identity, DNS, and observability services from upstream environments.
 
-## Change Policy
-- Promotion only from validated changes in lower environments.
-- Emergency changes require follow-up decision log entry.
+## Boundary Rules
+- Must not become the source for global identity or monitoring control services.
+- Application release concerns are handled after infrastructure and baseline configuration complete.
 
-## Validation Gates
-- Successful apply/configure cycle during maintenance window.
-- Service SLO checks and monitoring signal verification.
-- Backup verification and rollback readiness check.
+## Phase Alignment
+- Delivered in phase 5 after foundational and security phases are operational.
+- Subject to CI/policy and recovery validation in phases 6-7.

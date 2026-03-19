@@ -1,25 +1,22 @@
 # Security Baselines
 
-## Secret Handling
-- Secrets are sourced from encrypted stores (for example: Ansible Vault or external secret manager integration).
-- Secret placeholders may exist in Git; secret values must not.
-- CI must fail on detected plaintext secret patterns.
+## Security Baseline Objectives
+- Enforce least privilege and auditable access.
+- Standardize host hardening and service exposure.
+- Support detection and response validation in roadmap phases 3-4.
 
-## Access Control
-- SSH key-based authentication only.
-- Privileged access restricted to approved operator groups.
-- Service accounts use least privilege.
+## Required Controls
+- Role-based administrative access with traceable identity.
+- Default-deny host/network policies with explicit service allows.
+- Centralized event forwarding to Wazuh.
+- Time synchronization for event correlation integrity.
+- Service hardening according to documented role policy.
 
-## Host Hardening Minimums
-- Disable unused network services.
-- Enforce firewall default deny with explicit allow rules.
-- Enforce baseline audit logging.
-- Apply OS security updates during maintenance windows.
+## Security Validation Integration
+- Prometheus/Grafana monitor service health and baseline drift signals.
+- Caldera exercises verify visibility and detection pathways.
+- Findings are fed into change-management and decision-log updates.
 
-## Terraform/OpenTofu Security Rules
-- Input variables that carry sensitive values are marked `sensitive = true`.
-- State backend access is restricted to automation identities and approved operators.
-
-## Evidence and Auditability
-- Each deployment run must produce logs/artifacts traceable to a Git commit.
-- Security baseline deviations require an entry in `docs/06-decisions/decision-log.md`.
+## Baseline Drift Policy
+- Drift detected by telemetry or audits must be remediated via Ansible role updates.
+- Emergency manual mitigations must be codified post-incident before closure.
