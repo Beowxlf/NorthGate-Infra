@@ -1,28 +1,39 @@
 # System Overview
 
-## Architectural Layers
-NorthGate infrastructure is implemented in three layers:
+## Architecture Summary
+NorthGate is an on-premises multi-environment infrastructure platform built through phased delivery. The architecture uses strict layer separation so that platform lifecycle is reproducible and auditable.
 
-1. **Provisioning layer (Terraform/OpenTofu):** creates networks, storage, and VM resources.
-2. **Configuration layer (Ansible):** configures operating systems, baseline services, and security controls.
-3. **Application layer:** deploys and configures application services after host baselines pass validation.
+## Infrastructure Layers
 
-## Control Flow
-1. Git change is proposed.
-2. CI validates Terraform/OpenTofu, Ansible, and documentation structure.
-3. Terraform/OpenTofu applies infrastructure changes to target environment.
-4. Ansible applies role-based configuration.
-5. Application deployment jobs run.
-6. Post-deployment validation confirms service and host health.
+### 1) Provisioning Layer (Terraform/OpenTofu)
+Responsibilities:
+- Define and create environment network topology.
+- Provision VM, network interface, and storage resources.
+- Export outputs consumed by configuration automation.
 
-## Core Components
-- **Hypervisor/virtualization substrate:** local lab compute fabric.
-- **VM workloads:** control, utility, and application-hosting roles.
-- **Network segments:** management, service, and optional ingress zones.
-- **State and artifacts:** Terraform state backend and image artifacts.
+### 2) Configuration Layer (Ansible)
+Responsibilities:
+- Apply baseline host configuration and hardening.
+- Install and configure platform services.
+- Enforce service dependencies and operational policies.
 
-## Design Principles
-- Deterministic naming and directory conventions.
-- Reuse via modules (Terraform/OpenTofu) and roles (Ansible).
-- Environment composition from shared building blocks.
-- Secure defaults with explicit exceptions.
+### 3) Application Layer (ScrambleIQ hosting workflow)
+Responsibilities:
+- Deploy application runtime components to prepared hosts.
+- Bind runtime to configured database, reverse proxy, and secrets.
+- Validate runtime health post-deployment.
+
+## Logical Service Domains
+- **Core Infrastructure:** Domain services, DNS, firewall policy, control access.
+- **Observability:** Wazuh, Prometheus, Grafana.
+- **Security Validation:** Caldera and controlled adversary simulation workflows.
+- **Application Hosting:** ScrambleIQ reverse proxy, app runtime, database, optional workers.
+
+## Roadmap-to-Architecture Mapping
+- **Phase 0-1:** Layer model, naming conventions, foundational module/role structure.
+- **Phase 2:** Core identity and security telemetry services.
+- **Phase 3:** Metrics observability and dashboards.
+- **Phase 4:** Adversary simulation for security effectiveness.
+- **Phase 5:** Application hosting stack integration.
+- **Phase 6:** CI enforcement across all layers.
+- **Phase 7:** Failure and recovery verification.

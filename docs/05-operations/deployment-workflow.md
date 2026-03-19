@@ -1,26 +1,36 @@
 # Deployment Workflow
 
-## Canonical Execution Model
-1. **Git change proposal**
-   - Infrastructure intent documented and code updated in branch.
-2. **AI-assisted authoring (optional)**
-   - AI may draft Terraform/OpenTofu, Ansible, and docs changes.
-   - Human reviewer validates correctness before merge.
-3. **CI validation**
-   - Format/lint checks.
-   - Terraform/OpenTofu validation and plan checks.
-   - Ansible lint/syntax checks.
-4. **Provisioning**
-   - Terraform/OpenTofu applies environment changes.
-5. **Configuration**
-   - Ansible applies baseline and role-specific configuration.
-6. **Application deployment**
-   - Application artifacts/configuration are deployed to app hosts.
-7. **Monitoring and validation**
-   - Health checks, telemetry, and service validation confirm success.
+## Git-to-Infrastructure Execution Path
+1. **Design and change authoring in Git branch**
+   - Update architecture/infrastructure docs when behavior or topology changes.
+   - Implement IaC changes in Terraform/OpenTofu, Ansible, or Packer.
+2. **Local validation**
+   - Run formatting and static checks.
+   - Run plan/syntax checks for changed layers.
+3. **Pull request review**
+   - Validate scope, dependency order, and layer boundaries.
+4. **CI enforcement (phase 6 requirement)**
+   - Terraform/OpenTofu fmt/validate/plan checks.
+   - Ansible lint/syntax and playbook sanity checks.
+   - Documentation structure/completeness checks.
+5. **Controlled apply**
+   - Apply provisioning changes to target environment.
+   - Run Ansible configuration in defined dependency order.
+   - Execute application deployment workflow for `app-hosting` when applicable.
+6. **Post-deployment validation**
+   - Service health checks.
+   - Telemetry/alert status checks.
+   - Change record update and closure.
 
-## Promotion Order
+## Promotion Sequence
 `test-core` -> `workbench` -> `app-hosting`
 
-## Rollback Principle
-Rollback is performed via Git revert plus controlled re-apply of Terraform/OpenTofu and Ansible.
+Promotion can proceed only when the current environment has:
+- successful provisioning/configuration validation,
+- no unresolved critical alerts,
+- documented change approval.
+
+## Rollback Model
+- Use Git revert/cherry-pick rollback commit.
+- Re-apply Terraform/OpenTofu and Ansible to return to known-good state.
+- For data-bearing services, execute documented restore procedures before service reopening.

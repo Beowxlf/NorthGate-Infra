@@ -1,26 +1,31 @@
-# Compute Infrastructure
+# Compute
 
-## VM Role Model
-Each VM belongs to one primary role category:
+## Compute Design Principles
+- Compute nodes are role-specific and immutable-by-default at the image baseline.
+- Image standardization is performed by Packer.
+- Runtime configuration is applied through Ansible after provisioning.
 
-1. **ctl (control):** orchestration endpoints, CI runners, and control-plane utilities.
-2. **cfg (configuration):** configuration execution nodes and repositories (when isolated control host is required).
-3. **app (application):** application runtime hosts.
-4. **obs (observability):** monitoring and logging stack hosts.
+## Node Naming Standard
+`ng-<env>-<service-role>-<index>`
 
-## VM Naming Convention
-Format: `ng-<env>-<role>-<index>`
-- `env`: `test-core`, `workbench`, `app-hosting`.
-- `role`: `ctl`, `cfg`, `app`, `obs`, or approved extension.
-- `index`: two-digit sequence (`01`, `02`, ...).
+Examples:
+- `ng-test-core-dc-01`
+- `ng-workbench-control-01`
+- `ng-app-hosting-app-01`
 
-## Sizing Standards
-- VM size classes: `small`, `medium`, `large`.
-- Terraform variables define vCPU, memory, and root disk per class.
-- Environment roots map role -> size class explicitly.
+## Role-to-Environment Mapping
+- `test-core`: `dc`, `wazuh`, `prometheus`, `grafana` roles.
+- `workbench`: `jump`, `control`, `caldera`, `attack` roles.
+- `app-hosting`: `proxy`, `app`, `db`, optional `worker` roles.
 
-## Lifecycle
-- Base image built by Packer.
-- VM provisioned by Terraform/OpenTofu.
-- Host baseline applied by Ansible.
-- Application payload deployed only after baseline validation.
+## Provisioning Ownership
+Terraform/OpenTofu modules must define:
+- CPU/memory/disk classes per role.
+- NIC attachments by segment.
+- Boot image reference and metadata outputs for Ansible inventory.
+
+## Configuration Ownership
+Ansible roles must define:
+- Base OS hardening and account policy.
+- Service package/runtime configuration.
+- Health verification handlers and restart logic.

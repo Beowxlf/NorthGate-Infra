@@ -1,21 +1,23 @@
 # Change Management
 
 ## Change Classes
-- **Standard:** pre-approved low-risk repetitive changes.
-- **Normal:** reviewed changes requiring planned execution.
-- **Emergency:** urgent restoration/security changes with expedited approval.
+- **Standard:** low-risk, pre-approved pattern with established rollback.
+- **Normal:** planned change requiring review and scheduled execution window.
+- **Emergency:** urgent remediation to restore security or service continuity.
 
-## Required Artifacts Per Change
-- Linked issue or change request identifier.
-- Pull request with summary, risk, and rollback notes.
-- Environment impact statement.
+## Required Change Record Content
+- Problem statement and intent.
+- Affected environments and services.
+- Layer impact (provisioning/configuration/application).
+- Validation plan and rollback plan.
+- Dependency and ordering notes.
 
 ## Approval Rules
-- At least one infrastructure reviewer for Terraform/OpenTofu changes.
-- At least one configuration reviewer for Ansible changes.
-- Security-impacting changes require explicit security review.
+- At least one reviewer with infrastructure ownership must approve.
+- Cross-layer changes require explicit acknowledgement of sequencing.
+- Emergency changes require post-implementation retrospective and codification.
 
-## Post-Change Review
-- Verify intended state and monitoring signals.
-- Record lessons learned for failed or degraded outcomes.
-- Add/update decision log entries for policy or architecture shifts.
+## Post-Change Requirements
+- Capture validation evidence.
+- Update decision log when architecture policy changes.
+- Open follow-up actions for technical debt or unresolved risk.

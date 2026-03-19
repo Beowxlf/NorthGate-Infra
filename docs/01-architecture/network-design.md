@@ -1,32 +1,38 @@
 # Network Design
 
+## Network Objectives
+- Isolate environment concerns while preserving controlled service dependencies.
+- Provide deterministic addressing and naming for automation.
+- Enforce policy boundaries between management, platform, and application traffic.
+
+## Environment Network Boundaries
+
+### `test-core`
+- Hosts identity, monitoring, and foundational shared services.
+- Receives controlled administration from `workbench` only.
+- Exposes only required ports to dependent environments.
+
+### `workbench`
+- Hosts operator/control-plane resources (jump host, control node, security tooling).
+- Has administrative access paths into `test-core` and `app-hosting` based on least privilege.
+
+### `app-hosting`
+- Hosts application runtime and data services.
+- Receives operator access from `workbench` and service dependencies from `test-core`.
+
 ## Segmentation Model
-NorthGate uses three logical segments in each environment:
+- **Management segment:** administrative and automation control traffic.
+- **Service segment:** east-west service communications.
+- **Ingress segment (optional):** controlled inbound path for application endpoints.
 
-1. **mgmt segment**
-   - Purpose: admin access, configuration traffic, and observability.
-   - Access policy: restricted to operator endpoints and automation runners.
-2. **svc segment**
-   - Purpose: east-west service traffic between platform and app hosts.
-   - Access policy: allow required service ports only.
-3. **ingress segment (optional per environment)**
-   - Purpose: north-south client access to exposed services.
-   - Access policy: tightly scoped to published service endpoints.
+## Naming Conventions
+- Network objects use: `ng-<env>-<segment>-<purpose>-<index>`.
+- Examples:
+  - `ng-test-core-net-mgmt-01`
+  - `ng-workbench-net-svc-01`
+  - `ng-app-hosting-net-ingress-01`
 
-## Addressing Convention
-- CIDR blocks are assigned per environment and segment.
-- CIDR naming format: `<env>-<segment>-cidr`.
-- Static infrastructure addresses (for control endpoints) are reserved at the low end of each subnet.
-
-## Traffic Policy
-- Default deny between segments unless explicitly allowed.
-- Management services are reachable only from mgmt-approved sources.
-- Inter-environment routing is disabled by default.
-
-## DNS and Naming
-- Hostnames follow: `ng-<env>-<role>-<index>` (example: `ng-test-core-cfg-01`).
-- Forward and reverse DNS entries are required for long-lived hosts.
-
-## Validation Requirements
-- Terraform/OpenTofu validates CIDR overlap and route definitions.
-- Ansible connectivity checks validate management reachability before role execution.
+## Dependency Rules
+- DNS/time services must be reachable from all managed nodes.
+- Identity-dependent services (e.g., domain-integrated hosts) require domain and DNS before service activation.
+- Monitoring agents require outbound path to Wazuh and Prometheus endpoints.
