@@ -1,0 +1,81 @@
+---
+- name: Update apt package cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: "{{ control_node_apt_cache_valid_time }}"
+  when:
+    - control_node_manage_packages
+    - ansible_pkg_mgr == 'apt'
+
+- name: Ensure operator user exists when requested
+  ansible.builtin.user:
+    name: "{{ control_node_operator_user }}"
+    group: "{{ control_node_operator_group }}"
+    shell: "{{ control_node_operator_shell }}"
+    create_home: true
+    state: present
+  when: control_node_create_operator_user
+
+- name: Install control node mandatory packages
+  ansible.builtin.package:
+    name:
+      - "{{ control_node_package_map[ansible_os_family].ansible | default('ansible') }}"
+      - "{{ control_node_package_map[ansible_os_family].terraform | default('opentofu') }}"
+      - "{{ control_node_package_map[ansible_os_family].git | default('git') }}"
+      - "{{ control_node_package_map[ansible_os_family].python | default('python3') }}"
+    state: present
+  when: control_node_manage_packages
+
+- name: Install control node basic tooling
+  ansible.builtin.package:
+    name: "{{ control_node_basic_tools }}"
+    state: present
+  when: control_node_manage_packages
+
+- name: Ensure control-plane workspace root exists
+  ansible.builtin.file:
+    path: "{{ control_node_workspace_root }}"
+    state: directory
+    owner: "{{ control_node_operator_user }}"
+    group: "{{ control_node_operator_group }}"
+    mode: '0750'
+  when: control_node_manage_workspace
+
+- name: Ensure control-plane workspace directories exist
+  ansible.builtin.file:
+    path: "{{ control_node_workspace_root }}/{{ item }}"
+    state: directory
+    owner: "{{ control_node_operator_user }}"
+    group: "{{ control_node_operator_group }}"
+    mode: '0750'
+  loop: "{{ control_node_workspace_directories }}"
+  when: control_node_manage_workspace
+
+- name: Ensure operator SSH directory exists
+  ansible.builtin.file:
+    path: "/home/{{ control_node_operator_user }}/.ssh"
+    state: directory
+    owner: "{{ control_node_operator_user }}"
+    group: "{{ control_node_operator_group }}"
+    mode: "{{ control_node_ssh_dir_mode }}"
+  when: control_node_manage_ssh
+
+- name: Ensure control node SSH keypair exists
+  community.crypto.openssh_keypair:
+    path: "/home/{{ control_node_operator_user }}/{{ control_node_ssh_private_key_path }}"
+    type: "{{ control_node_ssh_key_type }}"
+    comment: "{{ control_node_ssh_key_comment }}"
+    owner: "{{ control_node_operator_user }}"
+    group: "{{ control_node_operator_group }}"
+    mode: '0600'
+    force: false
+  when: control_node_manage_ssh
+
+- name: Ensure known_hosts entries are present
+  ansible.builtin.known_hosts:
+    path: "/home/{{ control_node_operator_user }}/.ssh/known_hosts"
+    name: "{{ item.name }}"
+    key: "{{ item.key }}"
+    state: present
+  loop: "{{ control_node_known_hosts_entries }}"
+  when: control_node_manage_ssh

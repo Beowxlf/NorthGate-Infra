@@ -1,0 +1,56 @@
+---
+# Package management behavior
+control_node_manage_packages: true
+control_node_apt_cache_valid_time: 3600
+
+# Operator account used for infrastructure execution on the control node.
+control_node_operator_user: ops
+control_node_operator_group: "{{ control_node_operator_user }}"
+control_node_create_operator_user: false
+control_node_operator_shell: /bin/bash
+
+# Core control-plane tooling (must include Ansible, Terraform/OpenTofu, Git, Python)
+control_node_package_map:
+  Debian:
+    ansible: ansible
+    terraform: opentofu
+    git: git
+    python: python3
+  RedHat:
+    ansible: ansible-core
+    terraform: opentofu
+    git: git
+    python: python3
+  Suse:
+    ansible: ansible-core
+    terraform: opentofu
+    git: git
+    python: python3
+
+control_node_basic_tools:
+  - curl
+  - jq
+  - unzip
+  - vim
+
+# SSH management
+control_node_manage_ssh: true
+control_node_ssh_dir_mode: '0700'
+control_node_ssh_private_key_path: ".ssh/id_ed25519"
+control_node_ssh_public_key_path: "{{ control_node_ssh_private_key_path }}.pub"
+control_node_ssh_key_type: ed25519
+control_node_ssh_key_comment: "control-node@northgate"
+control_node_known_hosts_entries: []
+# Example structure:
+# control_node_known_hosts_entries:
+#   - name: github.com
+#     key: "github.com ssh-ed25519 AAAA..."
+
+# Control-plane workspace on control node
+control_node_manage_workspace: true
+control_node_workspace_root: /opt/control-plane
+control_node_workspace_directories:
+  - ansible
+  - terraform
+  - state
+  - logs
