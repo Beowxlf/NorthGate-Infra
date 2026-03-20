@@ -1,0 +1,14 @@
+vm_name   = "tc-dc-01"
+cpu_count = 4
+memory_mb = 8192
+
+disk_size_gb = 100
+disk_type    = "ssd"
+
+network_id           = "test-core-core-services"
+network_adapter_type = "vmxnet3"
+ip_address           = "10.20.10.10"
+
+base_image_id      = "packer-win-server-2022-v20260320"
+base_image_version = "2026.03.20"
+base_image_source  = "packer/builds/windows-server-2022"

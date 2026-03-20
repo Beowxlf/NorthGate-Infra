@@ -1,46 +1,33 @@
 terraform {
-  required_version = ">= 1.6.0"
+  required_version = ">= 1.5.0"
+}
 
-  required_providers {
-    libvirt = {
-      source  = "dmacvicar/libvirt"
-      version = "~> 0.7"
-    }
+module "domain_controller_vm" {
+  source = "../../modules/vm"
+
+  vm_name   = var.vm_name
+  cpu_count = var.cpu_count
+  memory_mb = var.memory_mb
+
+  disk = {
+    size_gb = var.disk_size_gb
+    type    = var.disk_type
   }
-}
 
-provider "libvirt" {
-  uri = var.hypervisor_uri
-}
+  network_interface = {
+    network_id   = var.network_id
+    adapter_type = var.network_adapter_type
+    ip_address   = var.ip_address
+  }
 
-locals {
-  environment = var.environment_name
-  phase       = var.phase_name
-  zone         = var.primary_zone
+  base_image = {
+    image_id      = var.base_image_id
+    image_version = var.base_image_version
+    image_source  = var.base_image_source
+  }
 
-  name_prefix = lower(join("-", [var.org_slug, local.environment, local.phase]))
-
-  common_tags = merge(
-    {
-      environment = local.environment
-      phase       = local.phase
-      zone        = local.zone
-      managed_by  = "terraform"
-      repository  = "NorthGate-Infra"
-    },
-    var.extra_tags
-  )
-
-  phase1_service_catalog = {
-    core_services = [
-      "active-directory",
-      "internal-dns",
-      "network-time"
-    ]
-
-    monitoring_security = [
-      "central-log-pipeline",
-      "wazuh-manager"
-    ]
+  tags = {
+    environment = "test-core"
+    service     = "domain-controller"
   }
 }
