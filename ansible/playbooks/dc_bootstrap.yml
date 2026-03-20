@@ -1,0 +1,7 @@
+---
+- name: Bootstrap test-core domain controller
+  hosts: directory_services
+  gather_facts: false
+  serial: 1
+  roles:
+    - role: domain_controller

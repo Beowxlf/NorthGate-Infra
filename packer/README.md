@@ -15,3 +15,4 @@
 
 ## Implemented Baselines
 - `linux-base/` — Ubuntu Server LTS deterministic base image for non-Windows infrastructure.
+- `windows-base/` — Windows Server 2022 deterministic base image for domain-controller workloads.

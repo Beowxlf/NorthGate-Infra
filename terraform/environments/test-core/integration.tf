@@ -1,14 +1,35 @@
 locals {
-  # Integration contract for configuration management systems.
-  # This block is data-only and intentionally performs no configuration actions.
-  ansible_hosts = {
-    (module.domain_controller_vm.vm_name) = {
-      ansible_host = module.domain_controller_vm.vm_spec.network_interface.ip_address
-      hostname     = module.domain_controller_vm.vm_name
-      groups       = ["test_core", "domain_controllers"]
+  hosts = {
+    (module.linux_control_vm.hostname) = {
+      ansible_host = module.linux_control_vm.ip_address
+      hostname     = module.linux_control_vm.hostname
+      groups       = ["env_test_core", "control_plane", "os_linux", "phase_1_test_core"]
       metadata = {
+        role        = "ansible-control"
         environment = "test-core"
-        service     = "domain-controller"
+        service     = "control-plane"
+      }
+    }
+
+    (module.wazuh_vm.hostname) = {
+      ansible_host = module.wazuh_vm.ip_address
+      hostname     = module.wazuh_vm.hostname
+      groups       = ["env_test_core", "wazuh_manager", "os_linux", "phase_1_test_core", "zone_monitoring_security"]
+      metadata = {
+        role        = "wazuh-manager"
+        environment = "test-core"
+        service     = "wazuh"
+      }
+    }
+
+    (module.domain_controller_vm.hostname) = {
+      ansible_host = module.domain_controller_vm.ip_address
+      hostname     = module.domain_controller_vm.hostname
+      groups       = ["env_test_core", "directory_services", "time_services", "os_windows", "phase_1_test_core", "zone_core_services"]
+      metadata = {
+        role        = "domain-controller"
+        environment = "test-core"
+        service     = "directory-services"
       }
     }
   }
@@ -16,28 +37,66 @@ locals {
   ansible_inventory = {
     all = {
       children = {
-        test_core = {
+        env_test_core = {
           hosts = {
-            for host, hostvars in local.ansible_hosts :
+            for host, hostvars in local.hosts :
             host => {
               ansible_host = hostvars.ansible_host
               hostname     = hostvars.hostname
-              environment  = hostvars.metadata.environment
-              service      = hostvars.metadata.service
+              ng_environment = hostvars.metadata.environment
+              ng_role      = hostvars.metadata.role
             }
-          }
-          vars = {
-            environment = "test-core"
           }
         }
-        domain_controllers = {
+
+        control_plane = {
           hosts = {
-            for host, hostvars in local.ansible_hosts :
-            host => {
-              ansible_host = hostvars.ansible_host
-              hostname     = hostvars.hostname
-            }
-            if contains(hostvars.groups, "domain_controllers")
+            for host, hostvars in local.hosts : host => {}
+            if contains(hostvars.groups, "control_plane")
+          }
+        }
+
+        directory_services = {
+          hosts = {
+            for host, hostvars in local.hosts : host => {}
+            if contains(hostvars.groups, "directory_services")
+          }
+        }
+
+        time_services = {
+          hosts = {
+            for host, hostvars in local.hosts : host => {}
+            if contains(hostvars.groups, "time_services")
+          }
+        }
+
+        wazuh_manager = {
+          hosts = {
+            for host, hostvars in local.hosts : host => {}
+            if contains(hostvars.groups, "wazuh_manager")
+          }
+        }
+
+        os_linux = {
+          hosts = {
+            for host, hostvars in local.hosts : host => {}
+            if contains(hostvars.groups, "os_linux")
+          }
+        }
+
+        os_windows = {
+          hosts = {
+            for host, hostvars in local.hosts : host => {}
+            if contains(hostvars.groups, "os_windows")
+          }
+        }
+
+        phase_1_test_core = {
+          children = {
+            control_plane     = {}
+            directory_services = {}
+            time_services     = {}
+            wazuh_manager     = {}
           }
         }
       }
@@ -47,15 +106,17 @@ locals {
 
 output "integration_vm_hostnames" {
   description = "Hostnames exported for downstream Ansible inventory generation."
-  value       = keys(local.ansible_hosts)
+  value       = keys(local.hosts)
 }
 
 output "integration_vm_ips" {
   description = "VM IP addresses exported for downstream Ansible inventory generation."
-  value       = {
-    for host, hostvars in local.ansible_hosts :
-    host => hostvars.ansible_host
-  }
+  value       = { for host, hostvars in local.hosts : host => hostvars.ansible_host }
+}
+
+output "integration_role_mapping" {
+  description = "Role mapping exported for downstream orchestration checks."
+  value       = { for host, hostvars in local.hosts : host => hostvars.metadata.role }
 }
 
 output "ansible_inventory_data" {
@@ -68,18 +129,7 @@ output "ansible_inventory_yaml" {
   value       = yamlencode(local.ansible_inventory)
 }
 
-# Example Ansible inventory usage:
-# 1) Generate inventory YAML from Terraform output:
-#    terraform output -raw ansible_inventory_yaml > inventory.generated.yml
-#
-# 2) Validate generated inventory:
-#    ansible-inventory -i inventory.generated.yml --graph
-#
-# 3) Run a playbook against test-core hosts:
-#    ansible-playbook -i inventory.generated.yml ansible/playbooks/test-core.yml
-#
-# Integration flow:
-# 1) Terraform provisions infrastructure and emits deterministic outputs (hostname, IP, inventory map).
-# 2) Inventory output is exported as YAML/structured data.
-# 3) Ansible consumes exported inventory for configuration steps in the Ansible layer.
-# 4) No host configuration is performed in Terraform.
+output "ansible_inventory_json" {
+  description = "JSON-encoded inventory-compatible data for file-based Ansible inventory generation."
+  value       = jsonencode(local.ansible_inventory)
+}

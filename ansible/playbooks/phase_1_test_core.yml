@@ -1,0 +1,13 @@
+---
+- name: Bootstrap directory services first
+  import_playbook: dc_bootstrap.yml
+
+- name: Deploy Wazuh after directory services are healthy
+  import_playbook: wazuh_deploy.yml
+
+- name: Apply baseline Linux configuration roles
+  hosts: os_linux
+  gather_facts: true
+  become: true
+  roles:
+    - role: common

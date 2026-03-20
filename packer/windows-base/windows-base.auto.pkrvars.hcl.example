@@ -1,0 +1,4 @@
+windows_iso_path     = "/var/lib/libvirt/boot/windows-server-2022.iso"
+windows_iso_checksum = "sha256:REPLACE_WITH_ISO_CHECKSUM"
+vm_name              = "windows-server-2022-base"
+output_directory     = "output/windows-server-2022-base"
