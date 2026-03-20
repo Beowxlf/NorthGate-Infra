@@ -1,0 +1,97 @@
+---
+- name: Validate required domain controller inputs
+  ansible.builtin.assert:
+    that:
+      - domain_controller_domain_name | length > 0
+      - domain_controller_safe_mode_password | length > 0
+    fail_msg: >-
+      domain_controller_domain_name and domain_controller_safe_mode_password are
+      required. Set the password using Ansible Vault or another secret manager.
+
+- name: Install AD DS and DNS Windows features
+  ansible.windows.win_feature:
+    name: "{{ domain_controller_windows_features }}"
+    state: present
+    include_sub_features: true
+    include_management_tools: true
+  register: domain_controller_feature_install
+
+- name: Reboot if feature installation requires it
+  ansible.windows.win_reboot:
+    reboot_timeout: "{{ domain_controller_reboot_timeout }}"
+  when: domain_controller_feature_install.reboot_required
+
+- name: Detect whether host is already a domain controller
+  ansible.windows.win_powershell:
+    script: |
+      $ntdsService = Get-Service -Name NTDS -ErrorAction SilentlyContinue
+      if ($null -eq $ntdsService) {
+        $Ansible.Result = @{
+          is_domain_controller = $false
+          current_domain = (Get-CimInstance -ClassName Win32_ComputerSystem).Domain
+        }
+        return
+      }
+
+      $Ansible.Result = @{
+        is_domain_controller = $true
+        current_domain = (Get-CimInstance -ClassName Win32_ComputerSystem).Domain
+      }
+  register: domain_controller_state
+
+- name: Promote server to first domain controller in new forest
+  ansible.windows.win_powershell:
+    parameters:
+      DomainName: "{{ domain_controller_domain_name }}"
+      DomainNetbiosName: "{{ domain_controller_netbios_name }}"
+      SafeModePassword: "{{ domain_controller_safe_mode_password }}"
+      InstallDns: "{{ domain_controller_install_dns }}"
+    script: |
+      param(
+        [string]$DomainName,
+        [string]$DomainNetbiosName,
+        [string]$SafeModePassword,
+        [bool]$InstallDns
+      )
+
+      $securePassword = ConvertTo-SecureString -String $SafeModePassword -AsPlainText -Force
+
+      $addsForestParams = @{
+        DomainName = $DomainName
+        DomainNetbiosName = $DomainNetbiosName
+        SafeModeAdministratorPassword = $securePassword
+        InstallDns = $InstallDns
+        CreateDnsDelegation = $false
+        NoRebootOnCompletion = $true
+        Force = $true
+      }
+
+      Install-ADDSForest @addsForestParams
+
+      $Ansible.Changed = $true
+  register: domain_controller_promotion
+  when: not domain_controller_state.result.is_domain_controller
+  no_log: true
+
+- name: Reboot after domain controller promotion
+  ansible.windows.win_reboot:
+    reboot_timeout: "{{ domain_controller_reboot_timeout }}"
+  when: not domain_controller_state.result.is_domain_controller
+
+- name: Verify domain controller services after reboot
+  ansible.windows.win_powershell:
+    script: |
+      $ntdsService = Get-Service -Name NTDS -ErrorAction SilentlyContinue
+      if ($null -eq $ntdsService) {
+        throw "NTDS service not found. Domain controller promotion did not complete."
+      }
+
+      $dnsService = Get-Service -Name DNS -ErrorAction SilentlyContinue
+      if ($null -eq $dnsService) {
+        throw "DNS service not found. DNS role is not configured."
+      }
+
+      $Ansible.Result = @{
+        ntds_status = $ntdsService.Status.ToString()
+        dns_status = $dnsService.Status.ToString()
+      }
