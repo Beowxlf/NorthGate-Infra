@@ -1,14 +1,62 @@
-vm_name   = "tc-dc-01"
-cpu_count = 4
-memory_mb = 8192
+libvirt_uri       = "qemu:///system"
+storage_pool_path = "/var/lib/libvirt/images/test-core"
 
-disk_size_gb = 100
-disk_type    = "ssd"
+network_name          = "test-core-net"
+network_domain        = "test-core.northgate.local"
+network_cidr          = "10.30.20.0/24"
+network_gateway       = "10.30.20.1"
+network_prefix_length = 24
+network_dns_servers   = ["10.30.20.11"]
 
-network_id           = "test-core-core-services"
-network_adapter_type = "vmxnet3"
-ip_address           = "10.20.10.10"
+linux_control_vm = {
+  name                = "tc-mgmt-ansible-01"
+  cpu_count           = 2
+  memory_mb           = 4096
+  disk_size_gb        = 40
+  disk_type           = "qcow2"
+  interface_name      = "ens3"
+  ip_address          = "10.30.20.21"
+  admin_username      = "svc_ansible"
+  ssh_authorized_keys = ["ssh-ed25519 AAAA...replace-me"]
+  base_image_id       = "linux-base-v20260320"
+  base_image_version  = "2026.03.20"
+  base_image_source   = "packer/linux-base"
+}
 
-base_image_id      = "packer-win-server-2022-v20260320"
-base_image_version = "2026.03.20"
-base_image_source  = "packer/builds/windows-server-2022"
+wazuh_vm = {
+  name                = "tc-sec-wazuh-01"
+  cpu_count           = 4
+  memory_mb           = 8192
+  disk_size_gb        = 120
+  disk_type           = "qcow2"
+  interface_name      = "ens3"
+  ip_address          = "10.30.20.31"
+  admin_username      = "svc_ansible"
+  ssh_authorized_keys = ["ssh-ed25519 AAAA...replace-me"]
+  base_image_id       = "linux-base-v20260320"
+  base_image_version  = "2026.03.20"
+  base_image_source   = "packer/linux-base"
+}
+
+domain_controller_vm = {
+  name               = "tc-core-dc-01"
+  cpu_count          = 4
+  memory_mb          = 8192
+  disk_size_gb       = 120
+  disk_type          = "qcow2"
+  interface_name     = "Ethernet"
+  ip_address         = "10.30.20.11"
+  base_image_id      = "windows-server-2022-base-v20260320"
+  base_image_version = "2026.03.20"
+  base_image_source  = "packer/windows-base"
+  winrm = {
+    transport = "https"
+    port      = 5986
+    use_tls   = true
+  }
+  administrator_access = {
+    username = "svc_ansible"
+    method   = "password"
+    secret   = "REPLACE_WITH_VAULT_SECRET"
+  }
+}

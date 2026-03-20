@@ -1,17 +1,26 @@
-# test-core Environment Example (`terraform/environments/test-core`)
+# test-core Environment (`terraform/environments/test-core`)
 
 ## Purpose
-Demonstrates how `terraform/modules/vm` is consumed for a foundational `test-core` workload (domain controller class VM).
+Executable Phase 1 environment stack for deterministic provisioning of:
 
-## Why this structure
-1. Environment root keeps only composition and environment-specific input values.
-2. Reusable VM contract stays in `terraform/modules/vm` to prevent duplication across `test-core`, `workbench`, and `app-hosting`.
-3. Base image input is supplied externally from Packer output data to enforce immutable-image workflows.
+1. Linux Ansible control node
+2. Windows Domain Controller
+3. Linux Wazuh manager node
+4. Isolated `test-core` libvirt network
+
+## Deterministic pipeline contract
+- Terraform provisions compute/network/storage resources only.
+- Terraform exports inventory-compatible outputs (`ansible_inventory_data`, `ansible_inventory_yaml`, `ansible_inventory_json`).
+- `scripts/render_ansible_inventory.py` converts Terraform output to a committed Ansible inventory artifact path.
+- Ansible playbooks in `ansible/playbooks/` handle all host/service configuration.
 
 ## Usage
-1. Copy `terraform.tfvars.example` to `terraform.tfvars`.
-2. Replace example values with environment-owned values.
-3. Run `terraform init` and `terraform plan` from this directory.
-
-## Note
-This example intentionally excludes host configuration and application deployment logic. Those concerns are handled in Ansible and application delivery layers.
+1. Copy `terraform.tfvars.example` to `terraform.tfvars` and set image IDs from Packer builds.
+2. Run:
+   - `terraform init`
+   - `terraform apply`
+3. Generate inventory from outputs:
+   - `python3 ../../../scripts/render_ansible_inventory.py --terraform-dir . --output ../../ansible/inventory/test-core/generated/hosts.auto.json`
+4. Run Ansible orchestration:
+   - `ansible-playbook -i ../../ansible/inventory/test-core/generated/hosts.auto.json ../../ansible/playbooks/phase_1_test_core.yml`
+5. Re-run Ansible command to verify idempotency.

@@ -1,0 +1,22 @@
+#ps1_sysnative
+$ErrorActionPreference = 'Stop'
+
+$username = '${admin_username}'
+$password = '${admin_password}' | ConvertTo-SecureString -AsPlainText -Force
+
+if (-not (Get-LocalUser -Name $username -ErrorAction SilentlyContinue)) {
+  New-LocalUser -Name $username -Password $password -PasswordNeverExpires:$true
+}
+Add-LocalGroupMember -Group 'Administrators' -Member $username -ErrorAction SilentlyContinue
+
+Enable-PSRemoting -Force
+Set-Item -Path WSMan:\localhost\Service\Auth\Basic -Value $true
+Set-Item -Path WSMan:\localhost\Service\AllowUnencrypted -Value ${allow_http}
+
+if (${use_tls}) {
+  $cert = New-SelfSignedCertificate -DnsName $env:COMPUTERNAME -CertStoreLocation Cert:\LocalMachine\My
+  New-Item -Path WSMan:\localhost\Listener -Transport HTTPS -Address * -CertificateThumbPrint $cert.Thumbprint -Force | Out-Null
+}
+
+netsh advfirewall firewall add rule name="WinRM ${winrm_port}" dir=in action=allow protocol=TCP localport=${winrm_port}
+Restart-Service WinRM
