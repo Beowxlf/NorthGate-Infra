@@ -1,0 +1,71 @@
+---
+- name: Update apt package cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: "{{ common_apt_cache_valid_time }}"
+  when:
+    - common_manage_packages
+    - ansible_pkg_mgr == 'apt'
+
+- name: Upgrade all dnf/yum packages to latest
+  ansible.builtin.yum:
+    name: '*'
+    state: latest
+    update_only: true
+  when:
+    - common_manage_packages
+    - common_package_upgrade
+    - ansible_pkg_mgr in ['dnf', 'yum']
+
+- name: Upgrade all apt packages to latest
+  ansible.builtin.apt:
+    name: '*'
+    state: latest
+  when:
+    - common_manage_packages
+    - common_package_upgrade
+    - ansible_pkg_mgr == 'apt'
+
+- name: Install baseline tools
+  ansible.builtin.package:
+    name: "{{ common_basic_tools }}"
+    state: present
+  when: common_manage_packages
+
+- name: Ensure standard user exists
+  ansible.builtin.user:
+    name: "{{ common_standard_user_name }}"
+    comment: "{{ common_standard_user_comment }}"
+    shell: "{{ common_standard_user_shell }}"
+    create_home: "{{ common_standard_user_create_home }}"
+    groups: >-
+      {{
+        common_standard_user_groups[ansible_os_family]
+        | default([common_standard_user_fallback_group])
+      }}
+    append: true
+    state: present
+
+- name: Install time synchronization package
+  ansible.builtin.package:
+    name: "{{ common_time_sync_packages[ansible_os_family] | default('chrony') }}"
+    state: present
+  when: common_time_sync_manage
+
+- name: Ensure time synchronization service is enabled and running
+  ansible.builtin.service:
+    name: "{{ common_time_sync_services[ansible_os_family] | default('chronyd') }}"
+    enabled: true
+    state: started
+  when: common_time_sync_manage
+
+- name: Apply SSH hardening settings
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+    backup: false
+  loop: "{{ common_ssh_settings }}"
+  when: common_ssh_manage
+  notify: Restart SSH service

@@ -1,0 +1,6 @@
+---
+- name: Restart SSH service
+  ansible.builtin.service:
+    name: "{{ common_ssh_service_names[ansible_os_family] | default('sshd') }}"
+    state: restarted
+  when: common_ssh_manage
