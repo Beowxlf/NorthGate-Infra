@@ -4,5 +4,5 @@ Reusable units of configuration and automation logic.
 
 ## Available roles
 
-- `common`: baseline Linux operating-system controls.
-- `wazuh`: deterministic deployment of Wazuh manager, indexer, and dashboard.
+- `common`: Baseline Linux settings shared across managed hosts.
+- `control_node`: Control plane/jump host baseline for infrastructure execution tooling.
