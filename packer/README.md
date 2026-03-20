@@ -12,3 +12,6 @@
 - Runtime configuration that should be managed by Ansible after provisioning.
 - Environment-specific infrastructure state.
 - Application deployment artifacts.
+
+## Implemented Baselines
+- `linux-base/` — Ubuntu Server LTS deterministic base image for non-Windows infrastructure.
