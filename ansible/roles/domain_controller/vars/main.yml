@@ -1,0 +1,3 @@
+---
+# Reboot timeout is intentionally explicit for deterministic automation.
+domain_controller_reboot_timeout: 3600

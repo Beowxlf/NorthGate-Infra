@@ -1,0 +1,18 @@
+---
+# AD DS target domain (forest root for bootstrap).
+domain_controller_domain_name: northgateops
+
+# NetBIOS domain name used by legacy clients. Derived from domain name when unset.
+domain_controller_netbios_name: "{{ domain_controller_domain_name.split('.')[0] | upper }}"
+
+# DSRM password for AD restore mode.
+# Must be supplied via Ansible Vault or external secret store.
+domain_controller_safe_mode_password: ""
+
+# Install and configure integrated DNS during forest creation.
+domain_controller_install_dns: true
+
+# Feature set required for first domain controller bootstrap.
+domain_controller_windows_features:
+  - AD-Domain-Services
+  - DNS
