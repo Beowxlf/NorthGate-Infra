@@ -16,3 +16,19 @@ domain_controller_install_dns: true
 domain_controller_windows_features:
   - AD-Domain-Services
   - DNS
+
+# DNS client hardening for AD-integrated DNS correctness.
+domain_controller_dns_listen_address: "127.0.0.1"
+
+# Deterministic validation objects created by automation.
+domain_controller_test_ou_name: "NorthGate-Test"
+domain_controller_test_user_name: "svc_phase2_validation"
+domain_controller_test_user_upn: "svc_phase2_validation@{{ domain_controller_domain_name }}"
+domain_controller_test_user_password: ""
+domain_controller_test_user_given_name: "Phase2"
+domain_controller_test_user_surname: "Validation"
+
+# Validation timeout controls.
+domain_controller_reboot_timeout: 1800
+domain_controller_domain_validation_retries: 30
+domain_controller_domain_validation_delay: 20

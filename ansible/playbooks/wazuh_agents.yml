@@ -1,0 +1,71 @@
+---
+- name: Enroll Linux endpoint agents into Wazuh manager
+  hosts: os_linux:!wazuh_manager
+  gather_facts: true
+  become: true
+  roles:
+    - role: wazuh
+
+- name: Enroll Windows endpoint agents into Wazuh manager
+  hosts: os_windows
+  gather_facts: true
+  roles:
+    - role: wazuh
+
+- name: Validate agent registration and endpoint telemetry on manager
+  hosts: wazuh_manager
+  gather_facts: false
+  become: true
+  vars:
+    expected_linux_endpoints: "{{ groups['os_linux'] | difference(groups['wazuh_manager'] | default([])) }}"
+    expected_windows_endpoints: "{{ groups['directory_services'] | default([]) }}"
+  tasks:
+    - name: Collect Wazuh agent registration list
+      ansible.builtin.command:
+        cmd: /var/ossec/bin/agent_control -ls
+      register: wazuh_agent_list
+      changed_when: false
+
+    - name: Assert Linux endpoint appears in Wazuh registration list
+      ansible.builtin.assert:
+        that:
+          - wazuh_agent_list.stdout is search(item)
+        fail_msg: "Expected Linux endpoint {{ item }} not registered in Wazuh"
+      loop: "{{ expected_linux_endpoints }}"
+
+    - name: Assert Windows DC endpoint appears in Wazuh registration list
+      ansible.builtin.assert:
+        that:
+          - wazuh_agent_list.stdout is search(item)
+        fail_msg: "Expected Windows endpoint {{ item }} not registered in Wazuh"
+      loop: "{{ expected_windows_endpoints }}"
+
+    - name: Validate Linux endpoint log marker ingestion
+      ansible.builtin.shell: >-
+        grep -q "{{ hostvars[item].wazuh_linux_log_message | default('NORTHGATE_PHASE2_LINUX_ACTIVITY') }}"
+        /var/ossec/logs/archives/archives.log
+      args:
+        executable: /bin/bash
+      register: wazuh_linux_ingest
+      changed_when: false
+      retries: 12
+      delay: 10
+      until: wazuh_linux_ingest.rc == 0
+      loop: "{{ expected_linux_endpoints }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Validate Windows DC event marker ingestion
+      ansible.builtin.shell: >-
+        grep -q "{{ hostvars[item].wazuh_windows_event_message | default('NORTHGATE_PHASE2_WINDOWS_ACTIVITY') }}"
+        /var/ossec/logs/archives/archives.log
+      args:
+        executable: /bin/bash
+      register: wazuh_windows_ingest
+      changed_when: false
+      retries: 12
+      delay: 10
+      until: wazuh_windows_ingest.rc == 0
+      loop: "{{ expected_windows_endpoints }}"
+      loop_control:
+        label: "{{ item }}"

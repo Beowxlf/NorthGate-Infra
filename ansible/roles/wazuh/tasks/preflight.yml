@@ -1,20 +1,26 @@
 ---
+- name: Resolve Wazuh manager host for enrollment clients
+  ansible.builtin.set_fact:
+    wazuh_resolved_manager_host: "{{ hostvars[groups['wazuh_manager'][0]].ansible_host | default(groups['wazuh_manager'][0]) }}"
+
 - name: Assert operating system family is supported
   ansible.builtin.assert:
     that:
-      - ansible_os_family in wazuh_prerequisite_packages
+      - ansible_os_family in wazuh_supported_os_families
     fail_msg: "Unsupported OS family for wazuh role: {{ ansible_os_family }}"
 
-- name: Ensure Wazuh role prerequisite packages are installed
+- name: Ensure Wazuh manager prerequisite packages are installed
   ansible.builtin.package:
     name: "{{ wazuh_prerequisite_packages[ansible_os_family] }}"
     state: present
+  when: "'wazuh_manager' in group_names"
 
 - name: Ensure Wazuh installation workspace exists
   ansible.builtin.file:
     path: "{{ wazuh_install_root }}"
     state: directory
     mode: "0755"
+  when: "'wazuh_manager' in group_names"
 
 - name: Gather service facts
   ansible.builtin.service_facts:

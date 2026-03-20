@@ -7,6 +7,12 @@ wazuh_install_root: /opt/wazuh-install
 wazuh_install_script_url: "https://packages.wazuh.com/{{ wazuh_version }}/wazuh-install.sh"
 wazuh_install_script_path: "{{ wazuh_install_root }}/wazuh-install.sh"
 
+# Supported operating systems
+wazuh_supported_os_families:
+  - Debian
+  - RedHat
+  - Windows
+
 # Package prerequisites (no pre-installed assumptions)
 wazuh_prerequisite_packages:
   Debian:
@@ -38,3 +44,19 @@ wazuh_manager_local_internal_options_path: /var/ossec/etc/local_internal_options
 wazuh_manager_local_internal_options:
   - "analysisd.min_rotate_interval=10"
   - "wazuh_db.sync_interval=5"
+
+# Agent enrollment defaults
+wazuh_default_agent_group: default
+wazuh_agent_apt_gpg_key_url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+wazuh_agent_apt_repository: "deb https://packages.wazuh.com/4.x/apt/ stable main"
+wazuh_agent_yum_repository: https://packages.wazuh.com/4.x/yum/
+wazuh_agent_yum_gpg_key_url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+wazuh_windows_agent_download_dir: C:\\Temp\\Wazuh
+wazuh_windows_agent_msi_url: "https://packages.wazuh.com/4.x/windows/wazuh-agent-{{ wazuh_version }}-1.msi"
+wazuh_windows_agent_msi_path: "{{ wazuh_windows_agent_download_dir }}\\wazuh-agent-{{ wazuh_version }}-1.msi"
+
+# Deterministic telemetry validation markers
+wazuh_linux_log_tag: phase2-validation
+wazuh_linux_log_message: NORTHGATE_PHASE2_LINUX_ACTIVITY
+wazuh_windows_event_source: Phase2Validation
+wazuh_windows_event_message: NORTHGATE_PHASE2_WINDOWS_ACTIVITY

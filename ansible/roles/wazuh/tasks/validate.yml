@@ -2,15 +2,16 @@
 - name: Refresh service facts after deployment
   ansible.builtin.service_facts:
 
-- name: Assert Wazuh services are running
+- name: Assert Wazuh manager services are running
   ansible.builtin.assert:
     that:
       - ansible_facts.services[item + '.service'] is defined
       - ansible_facts.services[item + '.service'].state == 'running'
     fail_msg: "Wazuh service {{ item }} is not running after deployment"
   loop: "{{ wazuh_services }}"
+  when: "'wazuh_manager' in group_names"
 
-- name: Validate Wazuh service ports are listening
+- name: Validate Wazuh manager service ports are listening
   ansible.builtin.wait_for:
     host: "127.0.0.1"
     port: "{{ item }}"
@@ -21,3 +22,32 @@
     - "{{ wazuh_api_port }}"
     - "{{ wazuh_agent_enrollment_port }}"
     - "{{ wazuh_agent_events_port }}"
+  when: "'wazuh_manager' in group_names"
+
+- name: Assert Wazuh Linux agent is running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services['wazuh-agent.service'] is defined
+      - ansible_facts.services['wazuh-agent.service'].state == 'running'
+    fail_msg: "Wazuh Linux agent service is not running"
+  when:
+    - "'wazuh_manager' not in group_names"
+    - ansible_os_family in ['Debian', 'RedHat']
+
+- name: Assert Wazuh Windows agent service is running
+  ansible.windows.win_service_info:
+    name: WazuhSvc
+  register: wazuh_windows_service_info
+  when:
+    - "'wazuh_manager' not in group_names"
+    - ansible_os_family == 'Windows'
+
+- name: Validate Wazuh Windows agent service status
+  ansible.builtin.assert:
+    that:
+      - wazuh_windows_service_info.exists
+      - wazuh_windows_service_info.services[0].state == 'running'
+    fail_msg: "Wazuh Windows agent service is not running"
+  when:
+    - "'wazuh_manager' not in group_names"
+    - ansible_os_family == 'Windows'

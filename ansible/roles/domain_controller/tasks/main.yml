@@ -4,9 +4,11 @@
     that:
       - domain_controller_domain_name | length > 0
       - domain_controller_safe_mode_password | length > 0
+      - domain_controller_test_user_password | length > 0
     fail_msg: >-
-      domain_controller_domain_name and domain_controller_safe_mode_password are
-      required. Set the password using Ansible Vault or another secret manager.
+      domain_controller_domain_name, domain_controller_safe_mode_password, and
+      domain_controller_test_user_password are required. Set secret values using
+      Ansible Vault or another secret manager.
 
 - name: Install AD DS and DNS Windows features
   ansible.windows.win_feature:
@@ -78,7 +80,111 @@
     reboot_timeout: "{{ domain_controller_reboot_timeout }}"
   when: not domain_controller_state.result.is_domain_controller
 
-- name: Verify domain controller services after reboot
+- name: Ensure DNS client points to loopback resolver on DC
+  ansible.windows.win_powershell:
+    parameters:
+      DesiredDnsServer: "{{ domain_controller_dns_listen_address }}"
+    script: |
+      param([string]$DesiredDnsServer)
+
+      $changed = $false
+      $activeAdapters = Get-DnsClient |
+        Where-Object { $_.InterfaceOperationalStatus -eq 'Up' -and $_.InterfaceAlias -notmatch 'Loopback' }
+
+      foreach ($adapter in $activeAdapters) {
+        $servers = (Get-DnsClientServerAddress -InterfaceIndex $adapter.InterfaceIndex -AddressFamily IPv4).ServerAddresses
+        if ($servers.Count -ne 1 -or $servers[0] -ne $DesiredDnsServer) {
+          Set-DnsClientServerAddress -InterfaceIndex $adapter.InterfaceIndex -ServerAddresses $DesiredDnsServer
+          $changed = $true
+        }
+      }
+
+      $Ansible.Changed = $changed
+      $Ansible.Result = @{ configured_dns = $DesiredDnsServer }
+
+- name: Wait for domain discovery command to succeed
+  ansible.windows.win_powershell:
+    parameters:
+      DomainName: "{{ domain_controller_domain_name }}"
+    script: |
+      param([string]$DomainName)
+
+      $domain = Get-ADDomain -Identity $DomainName
+      $Ansible.Result = @{
+        dns_root = $domain.DNSRoot
+        netbios = $domain.NetBIOSName
+        pdc = $domain.PDCEmulator
+      }
+  register: domain_controller_domain_validation
+  retries: "{{ domain_controller_domain_validation_retries }}"
+  delay: "{{ domain_controller_domain_validation_delay }}"
+  until: domain_controller_domain_validation is succeeded
+
+- name: Ensure deterministic Phase 2 validation OU exists
+  ansible.windows.win_powershell:
+    parameters:
+      DomainName: "{{ domain_controller_domain_name }}"
+      OuName: "{{ domain_controller_test_ou_name }}"
+    script: |
+      param(
+        [string]$DomainName,
+        [string]$OuName
+      )
+
+      $domainDn = (Get-ADDomain -Identity $DomainName).DistinguishedName
+      $ouDn = "OU=$OuName,$domainDn"
+      $existing = Get-ADOrganizationalUnit -Identity $ouDn -ErrorAction SilentlyContinue
+
+      if ($null -eq $existing) {
+        New-ADOrganizationalUnit -Name $OuName -Path $domainDn -ProtectedFromAccidentalDeletion $false
+        $Ansible.Changed = $true
+      } else {
+        $Ansible.Changed = $false
+      }
+
+      $Ansible.Result = @{ ou_dn = $ouDn }
+
+- name: Ensure deterministic Phase 2 validation user exists
+  ansible.windows.win_powershell:
+    parameters:
+      DomainName: "{{ domain_controller_domain_name }}"
+      OuName: "{{ domain_controller_test_ou_name }}"
+      UserName: "{{ domain_controller_test_user_name }}"
+      UserUpn: "{{ domain_controller_test_user_upn }}"
+      UserPassword: "{{ domain_controller_test_user_password }}"
+      GivenName: "{{ domain_controller_test_user_given_name }}"
+      Surname: "{{ domain_controller_test_user_surname }}"
+    script: |
+      param(
+        [string]$DomainName,
+        [string]$OuName,
+        [string]$UserName,
+        [string]$UserUpn,
+        [string]$UserPassword,
+        [string]$GivenName,
+        [string]$Surname
+      )
+
+      $domainDn = (Get-ADDomain -Identity $DomainName).DistinguishedName
+      $ouDn = "OU=$OuName,$domainDn"
+      $existing = Get-ADUser -Filter "SamAccountName -eq '$UserName'" -ErrorAction SilentlyContinue
+
+      if ($null -eq $existing) {
+        $securePassword = ConvertTo-SecureString -String $UserPassword -AsPlainText -Force
+        New-ADUser -Name $UserName -SamAccountName $UserName -UserPrincipalName $UserUpn -Path $ouDn \
+          -GivenName $GivenName -Surname $Surname -AccountPassword $securePassword -Enabled $true
+        $Ansible.Changed = $true
+      } else {
+        if (-not $existing.Enabled) {
+          Enable-ADAccount -Identity $existing.DistinguishedName
+          $Ansible.Changed = $true
+        } else {
+          $Ansible.Changed = $false
+        }
+      }
+  no_log: true
+
+- name: Verify domain controller services after convergence
   ansible.windows.win_powershell:
     script: |
       $ntdsService = Get-Service -Name NTDS -ErrorAction SilentlyContinue

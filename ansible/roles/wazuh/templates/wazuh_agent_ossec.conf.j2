@@ -1,0 +1,16 @@
+<ossec_config>
+  <client>
+    <server>
+      <address>{{ wazuh_resolved_manager_host }}</address>
+      <port>{{ wazuh_agent_events_port }}</port>
+      <protocol>tcp</protocol>
+    </server>
+    <notify_time>10</notify_time>
+    <time-reconnect>60</time-reconnect>
+    <auto_restart>yes</auto_restart>
+  </client>
+
+  <logging>
+    <log_format>plain</log_format>
+  </logging>
+</ossec_config>
