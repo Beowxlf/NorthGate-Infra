@@ -1,5 +1,5 @@
 ---
-- name: Validate domain controller is reachable before Wazuh deployment
+- name: Validate domain controller reachability before Wazuh deployment
   hosts: directory_services
   gather_facts: false
   tasks:
@@ -7,7 +7,7 @@
       ansible.builtin.wait_for_connection:
         timeout: 900
 
-- name: Deploy and validate Wazuh stack
+- name: Deploy and validate Wazuh manager stack
   hosts: wazuh_manager
   gather_facts: true
   become: true

@@ -1,13 +1,66 @@
 ---
-- name: Bootstrap directory services first
+- name: DC bootstrap stage
   import_playbook: dc_bootstrap.yml
 
-- name: Deploy Wazuh after directory services are healthy
-  import_playbook: wazuh_deploy.yml
+- name: DNS and domain validation stage
+  hosts: os_linux
+  gather_facts: false
+  become: true
+  vars:
+    primary_dc_host: "{{ groups['directory_services'][0] }}"
+    domain_name: "{{ hostvars[primary_dc_host].domain_controller_domain_name | default('northgateops') }}"
+  tasks:
+    - name: Validate DNS resolution for domain from Linux hosts
+      ansible.builtin.command:
+        cmd: "nslookup {{ domain_name }}"
+      changed_when: false
 
-- name: Apply baseline Linux configuration roles
+    - name: Validate LDAP SRV records from Linux hosts
+      ansible.builtin.command:
+        cmd: "nslookup -type=SRV _ldap._tcp.dc._msdcs.{{ domain_name }}"
+      changed_when: false
+
+- name: Domain join capability validation from Windows hosts
+  hosts: os_windows
+  gather_facts: false
+  vars:
+    primary_dc_host: "{{ groups['directory_services'][0] }}"
+    domain_name: "{{ hostvars[primary_dc_host].domain_controller_domain_name | default('northgateops') }}"
+    primary_dc_address: "{{ hostvars[primary_dc_host].ansible_host | default(primary_dc_host) }}"
+  tasks:
+    - name: Validate host can resolve and reach domain join dependencies
+      ansible.windows.win_powershell:
+        parameters:
+          DomainName: "{{ domain_name }}"
+          DomainController: "{{ primary_dc_address }}"
+        script: |
+          param(
+            [string]$DomainName,
+            [string]$DomainController
+          )
+
+          $dnsResult = Resolve-DnsName -Name $DomainName -Type A -ErrorAction Stop
+          $ldapReachable = Test-NetConnection -ComputerName $DomainController -Port 389 -InformationLevel Quiet
+          $kerberosReachable = Test-NetConnection -ComputerName $DomainController -Port 88 -InformationLevel Quiet
+
+          if (-not $ldapReachable -or -not $kerberosReachable) {
+            throw "Domain join prerequisite ports are unreachable to $DomainController"
+          }
+
+          $Ansible.Result = @{
+            dns_records = $dnsResult.NameHost
+            join_capable = ($ldapReachable -and $kerberosReachable)
+          }
+
+- name: Domain dependent baseline services stage
   hosts: os_linux
   gather_facts: true
   become: true
   roles:
     - role: common
+
+- name: Wazuh manager deployment stage
+  import_playbook: wazuh_deploy.yml
+
+- name: Wazuh agent enrollment and validation stage
+  import_playbook: wazuh_agents.yml

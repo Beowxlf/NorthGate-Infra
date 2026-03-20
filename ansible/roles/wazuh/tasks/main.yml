@@ -2,11 +2,25 @@
 - name: Preflight checks and prerequisites
   ansible.builtin.include_tasks: preflight.yml
 
-- name: Install or redeploy Wazuh central components
+- name: Deploy and validate Wazuh manager stack
   ansible.builtin.include_tasks: install.yml
+  when: "'wazuh_manager' in group_names"
 
-- name: Apply post-install configuration templates
+- name: Apply post-install manager configuration templates
   ansible.builtin.include_tasks: configure.yml
+  when: "'wazuh_manager' in group_names"
 
-- name: Validate Wazuh services and listener ports
+- name: Install and enroll Linux Wazuh agent
+  ansible.builtin.include_tasks: agent_linux.yml
+  when:
+    - "'wazuh_manager' not in group_names"
+    - ansible_os_family in ['Debian', 'RedHat']
+
+- name: Install and enroll Windows Wazuh agent
+  ansible.builtin.include_tasks: agent_windows.yml
+  when:
+    - "'wazuh_manager' not in group_names"
+    - ansible_os_family == 'Windows'
+
+- name: Validate Wazuh services, enrollment, and ingestion path
   ansible.builtin.include_tasks: validate.yml

@@ -1,0 +1,37 @@
+---
+- name: Ensure Wazuh Windows agent download directory exists
+  ansible.windows.win_file:
+    path: "{{ wazuh_windows_agent_download_dir }}"
+    state: directory
+
+- name: Download Wazuh Windows agent MSI
+  ansible.windows.win_get_url:
+    url: "{{ wazuh_windows_agent_msi_url }}"
+    dest: "{{ wazuh_windows_agent_msi_path }}"
+
+- name: Install Wazuh Windows agent package
+  ansible.windows.win_package:
+    path: "{{ wazuh_windows_agent_msi_path }}"
+    arguments: >-
+      /qn WAZUH_MANAGER="{{ wazuh_resolved_manager_host }}"
+      WAZUH_REGISTRATION_SERVER="{{ wazuh_resolved_manager_host }}"
+      WAZUH_AGENT_GROUP="{{ wazuh_default_agent_group }}"
+    state: present
+
+- name: Render Wazuh Windows agent configuration
+  ansible.windows.win_template:
+    src: wazuh_agent_ossec.conf.j2
+    dest: "C:\\Program Files (x86)\\ossec-agent\\ossec.conf"
+  notify: Restart wazuh agent windows
+
+- name: Ensure Wazuh Windows agent service is enabled and running
+  ansible.windows.win_service:
+    name: WazuhSvc
+    start_mode: auto
+    state: started
+
+- name: Generate deterministic Windows endpoint validation log marker
+  ansible.windows.win_command: >-
+    eventcreate /T INFORMATION /ID 1100 /L APPLICATION /SO {{ wazuh_windows_event_source }}
+    /D "{{ wazuh_windows_event_message }}"
+  changed_when: true
