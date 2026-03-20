@@ -1,0 +1,31 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  ssh:
+    install-server: true
+    allow-pw: true
+  apt:
+    preserve_sources_list: false
+    primary:
+      - arches: [amd64]
+        uri: http://archive.ubuntu.com/ubuntu
+  identity:
+    hostname: northgate-linux-base
+    username: packer
+    # Password is "packer" and is used only during image build.
+    password: "$6$Qf65A.3H0wGv2VYQ$8VylXn3F9AXav3wBTnM4P6n5Wl3QKrVxAsjQhZBf6J8VYgQCfT6gh8RgjzB9j2b1h4M31qS4v7TqgXkNdhS5Q0"
+  packages:
+    - openssh-server
+    - python3
+    - sudo
+    - curl
+    - ca-certificates
+    - jq
+    - vim-tiny
+    - net-tools
+    - iproute2
+  late-commands:
+    - curtin in-target --target=/target -- systemctl enable systemd-timesyncd.service
