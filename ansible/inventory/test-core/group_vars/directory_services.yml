@@ -1,0 +1,6 @@
+---
+ng_service_layer: core-infrastructure
+ng_target_zone: core-services
+ng_services:
+  - ad_ds
+  - internal_dns

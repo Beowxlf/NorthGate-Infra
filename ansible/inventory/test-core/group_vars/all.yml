@@ -1,0 +1,23 @@
+---
+# Environment identity
+ng_environment: test-core
+ng_phase: 1
+
+# Control-node execution contract
+ng_control_node: tc-mgmt-ansible-01
+ansible_user: svc_ansible
+ansible_ssh_common_args: >-
+  -o ControlMaster=auto
+  -o ControlPersist=30m
+  -o StrictHostKeyChecking=yes
+
+# Terraform/OpenTofu dynamic inventory contract (generated artifact path)
+ng_terraform_inventory_artifact: ../terraform/out/test-core-ansible-inventory.json
+ng_terraform_output_keys:
+  - hosts
+  - ip_addresses
+  - dns_names
+  - access_paths
+
+# Default interpreter for Linux targets
+ansible_python_interpreter: /usr/bin/python3

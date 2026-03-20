@@ -1,0 +1,7 @@
+---
+ng_zone: core-services
+ng_role: domain-controller
+ansible_host: 10.30.20.11
+ng_access_path: via-bastion
+ng_dns_primary: true
+ng_ntp_primary: true

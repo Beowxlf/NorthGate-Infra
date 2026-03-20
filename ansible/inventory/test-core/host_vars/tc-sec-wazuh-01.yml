@@ -1,0 +1,5 @@
+---
+ng_zone: monitoring-security
+ng_role: wazuh-manager
+ansible_host: 10.30.30.21
+ng_access_path: via-bastion
