@@ -1,0 +1,9 @@
+---
+- name: Apply Wazuh manager local internal options
+  ansible.builtin.template:
+    src: local_internal_options.conf.j2
+    dest: "{{ wazuh_manager_local_internal_options_path }}"
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Restart wazuh manager

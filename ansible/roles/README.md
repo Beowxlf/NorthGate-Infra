@@ -4,5 +4,5 @@ Reusable units of configuration and automation logic.
 
 ## Available roles
 
-- `common`: Baseline Linux host configuration.
-- `domain_controller`: Bootstrap a Windows AD DS Domain Controller with DNS.
+- `common`: baseline Linux operating-system controls.
+- `wazuh`: deterministic deployment of Wazuh manager, indexer, and dashboard.
