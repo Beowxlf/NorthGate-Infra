@@ -1,0 +1,12 @@
+---
+- name: Preflight checks and prerequisites
+  ansible.builtin.include_tasks: preflight.yml
+
+- name: Install or redeploy Wazuh central components
+  ansible.builtin.include_tasks: install.yml
+
+- name: Apply post-install configuration templates
+  ansible.builtin.include_tasks: configure.yml
+
+- name: Validate Wazuh services and listener ports
+  ansible.builtin.include_tasks: validate.yml

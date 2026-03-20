@@ -1,0 +1,20 @@
+---
+- name: Assert operating system family is supported
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family in wazuh_prerequisite_packages
+    fail_msg: "Unsupported OS family for wazuh role: {{ ansible_os_family }}"
+
+- name: Ensure Wazuh role prerequisite packages are installed
+  ansible.builtin.package:
+    name: "{{ wazuh_prerequisite_packages[ansible_os_family] }}"
+    state: present
+
+- name: Ensure Wazuh installation workspace exists
+  ansible.builtin.file:
+    path: "{{ wazuh_install_root }}"
+    state: directory
+    mode: "0755"
+
+- name: Gather service facts
+  ansible.builtin.service_facts:
