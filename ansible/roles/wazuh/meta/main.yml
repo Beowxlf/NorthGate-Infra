@@ -1,0 +1,21 @@
+---
+galaxy_info:
+  role_name: wazuh
+  author: northgate
+  description: Deploys Wazuh manager, indexer, and dashboard as an all-in-one SIEM stack.
+  license: MIT
+  min_ansible_version: '2.13'
+  platforms:
+    - name: EL
+      versions:
+        - '8'
+        - '9'
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+dependencies: []

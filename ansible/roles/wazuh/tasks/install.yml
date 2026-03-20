@@ -1,0 +1,57 @@
+---
+- name: Determine whether all Wazuh services are already installed
+  ansible.builtin.set_fact:
+    wazuh_is_installed: >-
+      {{
+        wazuh_services
+        | map('regex_replace', '^(.*)$', '\\1.service')
+        | difference(ansible_facts.services.keys() | list)
+        | length == 0
+      }}
+
+- name: Download Wazuh installation assistant
+  ansible.builtin.get_url:
+    url: "{{ wazuh_install_script_url }}"
+    dest: "{{ wazuh_install_script_path }}"
+    mode: "0755"
+
+- name: Render Wazuh installation config template
+  ansible.builtin.template:
+    src: config.yml.j2
+    dest: "{{ wazuh_config_template_path }}"
+    mode: "0644"
+  register: wazuh_config_render
+
+- name: Generate Wazuh installation files archive from config
+  ansible.builtin.command:
+    cmd: "bash {{ wazuh_install_script_path }} -g"
+    chdir: "{{ wazuh_install_root }}"
+  changed_when: true
+  when:
+    - wazuh_config_render.changed or wazuh_force_redeploy
+
+- name: Uninstall existing Wazuh stack before forced redeploy
+  ansible.builtin.command:
+    cmd: "bash {{ wazuh_install_script_path }} -u"
+    chdir: "{{ wazuh_install_root }}"
+  changed_when: true
+  when:
+    - wazuh_force_redeploy
+    - wazuh_is_installed
+
+- name: Install all-in-one Wazuh stack (manager/indexer/dashboard)
+  ansible.builtin.command:
+    cmd: >-
+      bash {{ wazuh_install_script_path }} -a
+      {{ '--overwrite' if (wazuh_force_redeploy or (wazuh_redeploy_on_config_change and wazuh_config_render.changed)) else '' }}
+    chdir: "{{ wazuh_install_root }}"
+  changed_when: true
+  when:
+    - not wazuh_is_installed or wazuh_force_redeploy or (wazuh_redeploy_on_config_change and wazuh_config_render.changed)
+
+- name: Ensure Wazuh services are enabled and started
+  ansible.builtin.service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: "{{ wazuh_services }}"

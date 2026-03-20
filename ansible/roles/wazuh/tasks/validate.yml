@@ -1,0 +1,23 @@
+---
+- name: Refresh service facts after deployment
+  ansible.builtin.service_facts:
+
+- name: Assert Wazuh services are running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[item + '.service'] is defined
+      - ansible_facts.services[item + '.service'].state == 'running'
+    fail_msg: "Wazuh service {{ item }} is not running after deployment"
+  loop: "{{ wazuh_services }}"
+
+- name: Validate Wazuh service ports are listening
+  ansible.builtin.wait_for:
+    host: "127.0.0.1"
+    port: "{{ item }}"
+    timeout: 30
+  loop:
+    - "{{ wazuh_indexer_port }}"
+    - "{{ wazuh_dashboard_port }}"
+    - "{{ wazuh_api_port }}"
+    - "{{ wazuh_agent_enrollment_port }}"
+    - "{{ wazuh_agent_events_port }}"
