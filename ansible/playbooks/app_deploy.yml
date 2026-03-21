@@ -1,0 +1,19 @@
+---
+- name: Deploy ScrambleIQ stack in app-hosting
+  hosts: app_hosting
+  become: true
+  gather_facts: true
+  vars:
+    dependency_order:
+      - database
+      - application
+      - reverse_proxy
+
+  pre_tasks:
+    - name: Assert dependency order
+      ansible.builtin.assert:
+        that:
+          - dependency_order == ['database', 'application', 'reverse_proxy']
+
+  roles:
+    - role: app_runtime

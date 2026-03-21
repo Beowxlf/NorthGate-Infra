@@ -1,0 +1,22 @@
+events {}
+http {
+  log_format json escape=json '{"time":"$time_iso8601","remote_addr":"$remote_addr","method":"$request_method","uri":"$request_uri","status":$status,"bytes":$bytes_sent,"request_time":$request_time,"upstream_time":"$upstream_response_time","user_agent":"$http_user_agent"}';
+
+  access_log /dev/stdout json;
+  error_log /dev/stderr warn;
+
+  upstream scrambleiq_app {
+    server {{ app_runtime_container_name }}:{{ app_runtime_container_port }};
+  }
+
+  server {
+    listen 80;
+    location / {
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_pass http://scrambleiq_app;
+    }
+  }
+}
