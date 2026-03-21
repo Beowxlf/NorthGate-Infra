@@ -1,0 +1,34 @@
+---
+caldera_version: "5.1.0"
+caldera_repo_url: "https://github.com/mitre/caldera.git"
+caldera_install_root: /opt/caldera
+caldera_user: caldera
+caldera_group: caldera
+caldera_service_name: caldera
+caldera_python_interpreter: /usr/bin/python3
+caldera_venv_path: "{{ caldera_install_root }}/venv"
+caldera_bind_host: 0.0.0.0
+caldera_bind_port: 8888
+caldera_plugins:
+  - access
+  - atomic
+  - builder
+  - chain
+  - debrief
+  - emu
+  - fieldmanual
+  - sandcat
+  - stockpile
+caldera_install_packages:
+  Debian:
+    - git
+    - python3
+    - python3-venv
+    - python3-pip
+  RedHat:
+    - git
+    - python3
+    - python3-pip
+caldera_service_env:
+  CALDERA_PORT: "{{ caldera_bind_port }}"
+  CALDERA_HOST: "{{ caldera_bind_host }}"

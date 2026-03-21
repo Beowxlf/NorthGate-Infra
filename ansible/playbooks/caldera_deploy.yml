@@ -1,0 +1,61 @@
+---
+- name: Validate Phase 3 prerequisites before Caldera deployment
+  hosts: localhost
+  gather_facts: false
+  vars:
+    caldera_target_group: "{{ 'caldera_server' if (groups['caldera_server'] | default([]) | length > 0) else 'control_plane' }}"
+  tasks:
+    - name: Assert domain controller inventory group exists
+      ansible.builtin.assert:
+        that:
+          - groups['directory_services'] | default([]) | length > 0
+        fail_msg: "directory_services group must be populated before Caldera deployment"
+
+    - name: Assert endpoint inventory groups exist
+      ansible.builtin.assert:
+        that:
+          - groups['os_windows'] | default([]) | length > 0
+          - groups['os_linux'] | default([]) | length > 0
+        fail_msg: "Both os_windows and os_linux endpoint groups are required for attack simulation coverage"
+
+    - name: Assert a Linux Caldera deployment target is available
+      ansible.builtin.assert:
+        that:
+          - groups[caldera_target_group] | default([]) | length > 0
+        fail_msg: "No Caldera deployment target found. Define caldera_server group or control_plane host"
+
+- name: Ensure domain controllers are reachable before Caldera deployment
+  hosts: directory_services
+  gather_facts: false
+  tasks:
+    - name: Wait for WinRM connectivity to domain controllers
+      ansible.builtin.wait_for_connection:
+        timeout: 900
+
+- name: Ensure endpoint systems are reachable before Caldera deployment
+  hosts: os_linux:os_windows
+  gather_facts: false
+  tasks:
+    - name: Wait for endpoint connectivity
+      ansible.builtin.wait_for_connection:
+        timeout: 600
+
+- name: Deploy MITRE Caldera in workbench control plane
+  hosts: "{{ 'caldera_server' if (groups['caldera_server'] | default([]) | length > 0) else 'control_plane' }}"
+  gather_facts: true
+  become: true
+  roles:
+    - role: caldera
+
+- name: Validate Caldera service reachability from deployment target
+  hosts: "{{ 'caldera_server' if (groups['caldera_server'] | default([]) | length > 0) else 'control_plane' }}"
+  gather_facts: false
+  become: true
+  vars:
+    caldera_port: "{{ caldera_bind_port | default(8888) }}"
+  tasks:
+    - name: Verify Caldera listener
+      ansible.builtin.wait_for:
+        host: "127.0.0.1"
+        port: "{{ caldera_port }}"
+        timeout: 120

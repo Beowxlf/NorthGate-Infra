@@ -7,3 +7,25 @@
     group: root
     mode: "0640"
   notify: Restart wazuh manager
+
+- name: Validate detection rules source exists on control node
+  ansible.builtin.stat:
+    path: "{{ wazuh_detection_rules_source }}"
+  register: wazuh_detection_rules_source_stat
+  delegate_to: localhost
+  become: false
+
+- name: Assert detection rules source is present
+  ansible.builtin.assert:
+    that:
+      - wazuh_detection_rules_source_stat.stat.exists
+    fail_msg: "Missing detection rules source: {{ wazuh_detection_rules_source }}"
+
+- name: Deploy Phase 3 detection rules to Wazuh manager
+  ansible.builtin.copy:
+    src: "{{ wazuh_detection_rules_source }}"
+    dest: "{{ wazuh_manager_local_rules_path }}"
+    owner: root
+    group: wazuh
+    mode: "0640"
+  notify: Restart wazuh manager

@@ -1,0 +1,19 @@
+---
+galaxy_info:
+  role_name: caldera
+  author: northgate
+  description: Deploy MITRE Caldera server for adversary simulation workflows.
+  license: MIT
+  min_ansible_version: '2.13'
+  platforms:
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+        - jammy
+        - noble
+    - name: EL
+      versions:
+        - '8'
+        - '9'
+dependencies: []

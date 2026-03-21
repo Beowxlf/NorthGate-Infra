@@ -97,3 +97,21 @@ Phase 2 is complete when all are true:
 3. Linux endpoint and Windows DC telemetry are both visible in Wazuh ingestion evidence.
 4. Second Ansible run is idempotent with no unintended changes.
 5. The environment supports repeatable detection validation workflows for Blue Team operations.
+
+
+## 8. Phase 3 Service Integration Validation
+
+### 8.1 Validation IDs
+| Validation ID | Command / Check | Expected Result |
+|---|---|---|
+| PH3-01 | `ansible-playbook -i ansible/inventory/test-core/hosts.yml ansible/playbooks/caldera_deploy.yml` | Caldera service converges and is reachable on port 8888. |
+| PH3-02 | Execute `PH3-ATK-001` from `docs/05-operations/attack-scenarios.md` | Attack steps execute against endpoint scope only. |
+| PH3-03 | Search `/var/ossec/logs/archives/archives.log` for Phase 3 markers and auth events | Attack-generated telemetry is ingested by Wazuh manager. |
+| PH3-04 | Verify Wazuh alerts for rule IDs `120001-120004` | Detection rules trigger visible alerts for each scenario stage. |
+| PH3-05 | Re-run scenario and compare alert outcomes | Detection remains repeatable and consistent across reruns. |
+
+### 8.2 Completion Criteria Addendum
+Phase 2 + Phase 3 operational readiness requires all prior criteria plus:
+1. Caldera is deployed in the workbench/control-plane path with deterministic automation.
+2. Attack simulation workflow is executable without manual endpoint modifications.
+3. Wazuh detection content produces stable, repeatable alert outputs for declared techniques.

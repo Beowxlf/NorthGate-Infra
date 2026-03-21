@@ -1,0 +1,40 @@
+<group name="northgate,phase3,detection_engineering,">
+  <rule id="120001" level="5">
+    <if_group>syslog</if_group>
+    <match>phase3-caldera</match>
+    <description>NorthGate Phase 3 process execution marker observed on Linux endpoint</description>
+    <group>process_execution,linux,phase3,</group>
+  </rule>
+
+  <rule id="120002" level="8">
+    <if_group>syslog</if_group>
+    <match>phase3 suspicious command</match>
+    <description>NorthGate Phase 3 suspicious command execution marker observed on Linux endpoint</description>
+    <group>command_execution,linux,phase3,</group>
+    <mitre>
+      <id>T1059</id>
+    </mitre>
+  </rule>
+
+  <rule id="120003" level="10">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4625$</field>
+    <description>NorthGate Phase 3 failed authentication event detected on Windows endpoint</description>
+    <group>authentication_failed,windows,phase3,</group>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+
+  <rule id="120004" level="9">
+    <if_group>windows</if_group>
+    <field name="win.system.providerName">^Microsoft-Windows-Sysmon$</field>
+    <field name="win.system.eventID">^1$</field>
+    <field name="win.eventdata.CommandLine" type="pcre2">(?i).*(whoami|net user|cmd\.exe\s+/c).*</field>
+    <description>NorthGate Phase 3 suspicious process command line observed by Sysmon</description>
+    <group>process_execution,windows,phase3,</group>
+    <mitre>
+      <id>T1059</id>
+    </mitre>
+  </rule>
+</group>
