@@ -24,3 +24,7 @@ Executable Phase 1 environment stack for deterministic provisioning of:
 4. Run Ansible orchestration:
    - `ansible-playbook -i ../../ansible/inventory/test-core/generated/hosts.auto.json ../../ansible/playbooks/phase_1_test_core.yml`
 5. Re-run Ansible command to verify idempotency.
+
+
+## State backend
+- Copy `backend.hcl.example` to `backend.hcl` and run `terraform init -backend-config=backend.hcl` to keep environment state isolated.

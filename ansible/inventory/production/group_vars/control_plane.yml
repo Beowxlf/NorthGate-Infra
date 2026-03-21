@@ -1,0 +1,7 @@
+---
+ng_service_layer: control-plane
+ng_target_zone: management
+ng_services:
+  - infrastructure_provisioning_controller
+  - configuration_management_controller
+  - bastion_paw_gateway
