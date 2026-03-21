@@ -1,0 +1,6 @@
+---
+- name: Restart caldera
+  ansible.builtin.systemd:
+    name: "{{ caldera_service_name }}"
+    state: restarted
+    enabled: true

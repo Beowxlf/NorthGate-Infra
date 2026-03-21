@@ -60,3 +60,7 @@ wazuh_linux_log_tag: phase2-validation
 wazuh_linux_log_message: NORTHGATE_PHASE2_LINUX_ACTIVITY
 wazuh_windows_event_source: Phase2Validation
 wazuh_windows_event_message: NORTHGATE_PHASE2_WINDOWS_ACTIVITY
+
+# Detection engineering content (Phase 3)
+wazuh_detection_rules_source: "{{ playbook_dir }}/../../detection/rules/wazuh_phase3_rules.xml"
+wazuh_manager_local_rules_path: /var/ossec/etc/rules/local_rules.xml

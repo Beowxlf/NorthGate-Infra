@@ -1,0 +1,36 @@
+---
+ability_set:
+  id: northgate-phase3-validation
+  name: NorthGate Phase 3 Detection Validation
+  description: Deterministic command chain used to validate Wazuh detections from Caldera.
+  tactics:
+    - execution
+    - credential-access
+  abilities:
+    - id: northgate-exec-linux-process
+      tactic: execution
+      technique_id: T1059.004
+      technique_name: Unix Shell
+      platform: linux
+      executor: sh
+      command: |
+        logger -t phase3-caldera "phase3-caldera process execution marker"
+    - id: northgate-exec-linux-command
+      tactic: execution
+      technique_id: T1059.004
+      technique_name: Unix Shell
+      platform: linux
+      executor: sh
+      command: |
+        logger -t phase3-caldera "phase3 suspicious command: whoami && id"
+        whoami
+        id
+    - id: northgate-credential-access-windows
+      tactic: credential-access
+      technique_id: T1110
+      technique_name: Brute Force
+      platform: windows
+      executor: psh
+      command: |
+        Write-EventLog -LogName Security -Source "Microsoft-Windows-Security-Auditing" -EntryType FailureAudit -EventId 4625 -Message "NorthGate phase3 simulated failed logon" -ErrorAction SilentlyContinue
+        cmd.exe /c "whoami"

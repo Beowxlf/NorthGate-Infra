@@ -1,0 +1,7 @@
+---
+host: {{ caldera_bind_host }}
+port: {{ caldera_bind_port }}
+plugins:
+{% for plugin in caldera_plugins %}
+  - {{ plugin }}
+{% endfor %}

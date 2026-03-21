@@ -1,0 +1,6 @@
+---
+- name: Phase 2 baseline convergence prerequisite
+  import_playbook: phase_1_test_core.yml
+
+- name: Phase 3 Caldera deployment
+  import_playbook: caldera_deploy.yml

@@ -1,0 +1,18 @@
+[Unit]
+Description=MITRE Caldera Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ caldera_user }}
+Group={{ caldera_group }}
+WorkingDirectory={{ caldera_install_root }}
+Environment=CALDERA_HOST={{ caldera_service_env.CALDERA_HOST }}
+Environment=CALDERA_PORT={{ caldera_service_env.CALDERA_PORT }}
+ExecStart={{ caldera_venv_path }}/bin/python3 server.py --insecure --build
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
