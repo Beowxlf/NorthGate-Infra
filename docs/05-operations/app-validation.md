@@ -1,41 +1,57 @@
 # ScrambleIQ Deployment Validation Runbook
 
-## 1. Reachability Validation
-1. Verify proxy container is running.
-2. Execute HTTP GET against proxy endpoint.
-3. Expect `200` or application-defined healthy response code.
+## 1. Application Reachability
+
+1. Confirm containers are running:
+   - `scrambleiq-db`
+   - `scrambleiq-api`
+   - `scrambleiq-web`
+2. Execute `GET /` on app-hosting ingress.
+3. Expect web UI payload (HTTP 200).
 
 ## 2. Functional Validation
-1. Execute deterministic application smoke path (`/health` or equivalent, `UNKNOWN` until source is available).
-2. Validate database dependency by performing one read/write transaction through app API path.
-3. Confirm no manual post-deploy step is required.
+
+1. Execute `GET /api/health` through ingress; expect 200.
+2. Execute authenticated API call:
+   - Header `x-api-key: <API_AUTH_TOKEN>`
+   - Example endpoint: `/api/matches`
+3. Execute unauthenticated call to same protected route; expect 401.
+4. If PostgreSQL mode enabled, create/update/read one match record and verify persistence after API restart.
 
 ## 3. Logging Validation
-1. Generate at least one normal request.
-2. Generate at least one failing request.
-3. Generate at least one authentication attempt (success/failure if auth exists).
-4. Confirm logs appear in:
-   - `docker logs scrambleiq-app`
-   - `docker logs scrambleiq-proxy`
+
+1. Generate one successful API request.
+2. Generate one failed/auth-denied API request.
+3. Verify logs from:
+   - `docker logs scrambleiq-web`
+   - `docker logs scrambleiq-api`
+4. Confirm NGINX JSON logs include `status`, `uri`, `remote_addr`, and timing fields.
 
 ## 4. Wazuh Visibility Validation
-1. Confirm Wazuh agent active on app-hosting node.
-2. Confirm Docker container log file monitoring is enabled in agent config.
-3. Confirm request/error/auth events appear in Wazuh index within expected ingestion window.
+
+1. Confirm Wazuh agent is active on app-hosting node.
+2. Confirm agent monitors Docker container log files.
+3. In Wazuh, verify:
+   - request events from `scrambleiq-web`
+   - auth-failure (`401`) events on protected `/api/*` routes
+   - API error events from `scrambleiq-api` stderr/stdout
 
 ## 5. Restart Behavior Validation
-1. Restart `scrambleiq-app` container.
-2. Verify service recovery without config drift.
-3. Restart host daemon/service path and confirm `unless-stopped` policy restores containers.
 
-## 6. Rebuild Behavior Validation
-1. Rebuild image using deterministic app bundle.
-2. Redeploy role/playbook.
-3. Validate identical container topology and expected environment variable projection.
-4. Verify persistent data remains in `scrambleiq_db_data` volume.
+1. Restart `scrambleiq-api` container.
+2. Re-run `/api/health` and one authenticated endpoint.
+3. Restart Docker daemon/host and confirm all ScrambleIQ containers auto-recover (`unless-stopped`).
+
+## 6. Rebuild / Redeploy Behavior
+
+1. Re-run `ansible/playbooks/app_deploy.yml` with same pinned `app_runtime_repo_ref`.
+2. Validate resulting image tags and container topology are unchanged.
+3. Validate database volume `scrambleiq_db_data` persists application data across redeploy.
 
 ## 7. Deterministic Acceptance Criteria
-- All required variables are explicitly set (no placeholders).
-- Deployment order remains database -> app -> proxy.
-- No manual runtime patching or out-of-band edits.
-- Logs are observable locally and in Wazuh pipeline.
+
+- Deployment uses pinned source commit (`app_runtime_repo_ref`).
+- No placeholder values remain for auth/database secrets.
+- Container dependency order remains `database -> api -> web_proxy`.
+- Ingress path remains single-entry through `scrambleiq-web`.
+- Request/error/auth-failure events are visible in Wazuh pipeline.

@@ -1,29 +1,38 @@
 # syntax=docker/dockerfile:1.7
-# Deterministic packaging template for ScrambleIQ.
-# This Dockerfile intentionally fails fast if runtime artifacts are not staged.
 
-FROM alpine:3.21.3 AS runtime
+FROM node:22.14.0-alpine3.21 AS build
+WORKDIR /workspace
 
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/shared/package.json packages/shared/package.json
+
+RUN npm ci
+
+COPY . .
+
+RUN npm run build --workspace @scrambleiq/shared \
+ && npm run build --workspace @scrambleiq/api
+
+FROM node:22.14.0-alpine3.21 AS runtime
 ARG APP_UID=10001
 ARG APP_GID=10001
-ARG APP_PORT=8080
 
 RUN addgroup -g ${APP_GID} -S scrambleiq \
-    && adduser -u ${APP_UID} -S -G scrambleiq scrambleiq
+ && adduser -u ${APP_UID} -S -G scrambleiq scrambleiq
 
 WORKDIR /opt/scrambleiq
 
-# Required deterministic runtime bundle.
-# Expected to be produced from the ScrambleIQ source repository and copied here.
-COPY --chown=scrambleiq:scrambleiq src/ ./src/
-COPY --chown=scrambleiq:scrambleiq run.sh ./run.sh
+COPY --from=build /workspace/package.json /workspace/package-lock.json ./
+COPY --from=build /workspace/node_modules ./node_modules
+COPY --from=build /workspace/apps/api ./apps/api
+COPY --from=build /workspace/packages/shared ./packages/shared
 
-RUN test -x ./run.sh || (echo "run.sh must exist and be executable under app/" && exit 10)
+ENV NODE_ENV=production \
+    PORT=3000
 
-ENV APP_PORT=${APP_PORT} \
-    TZ=UTC
-
-EXPOSE ${APP_PORT}
+EXPOSE 3000
 
 USER scrambleiq:scrambleiq
-ENTRYPOINT ["/opt/scrambleiq/run.sh"]
+CMD ["npm", "run", "start", "--workspace", "@scrambleiq/api"]

@@ -2,43 +2,39 @@
 app_runtime_enabled: true
 app_runtime_project_name: scrambleiq
 
+app_runtime_repo_url: https://github.com/Beowxlf/ScrambleIQ.git
+app_runtime_repo_ref: ca190cc12af74ddb1967bb2148da41cfa24b5b67
+app_runtime_checkout_dir: /opt/scrambleiq/source
+app_runtime_packaging_dir: /workspace/NorthGate-Infra/app
+
 app_runtime_network_name: scrambleiq_net
 
-app_runtime_container_name: scrambleiq-app
-app_runtime_image: "scrambleiq:local"
+app_runtime_api_image: scrambleiq-api:ca190cc12a
+app_runtime_web_image: scrambleiq-web:ca190cc12a
 app_runtime_pull: false
 app_runtime_restart_policy: unless-stopped
-app_runtime_host_port: 8080
-app_runtime_container_port: 8080
 
-app_runtime_env_file_path: /etc/scrambleiq/scrambleiq.env
-app_runtime_env:
-  APP_ENV: production
-  APP_PORT: "8080"
-  APP_BIND: 0.0.0.0
-  DB_HOST: scrambleiq-db
-  DB_PORT: "5432"
-  DB_NAME: scrambleiq
-  DB_USER: scrambleiq
-  DB_PASSWORD: CHANGE_ME
-  LOG_LEVEL: info
-  LOG_FORMAT: json
-  LOG_REQUESTS: "true"
-  LOG_AUTH_EVENTS: "true"
-  START_COMMAND: UNKNOWN
+app_runtime_host_http_port: 80
 
-app_runtime_database_enabled: true
-app_runtime_database_container_name: scrambleiq-db
+app_runtime_api_container_name: scrambleiq-api
+app_runtime_web_container_name: scrambleiq-web
+app_runtime_db_container_name: scrambleiq-db
+
+app_runtime_api_env_file_path: /etc/scrambleiq/api.env
+app_runtime_api_env:
+  NODE_ENV: production
+  PORT: "3000"
+  WEB_ORIGIN: http://localhost
+  API_AUTH_TOKEN: CHANGE_ME
+  DATABASE_URL: postgresql://scrambleiq:CHANGE_ME@scrambleiq-db:5432/scrambleiq
+
+app_runtime_web_build_args:
+  VITE_API_BASE_URL: /api
+  VITE_API_AUTH_TOKEN: CHANGE_ME
+
 app_runtime_database_image: postgres:16.8-alpine3.21
-app_runtime_database_port: 5432
 app_runtime_database_volume: scrambleiq_db_data
 app_runtime_database_env:
   POSTGRES_DB: scrambleiq
   POSTGRES_USER: scrambleiq
   POSTGRES_PASSWORD: CHANGE_ME
-
-app_runtime_proxy_enabled: true
-app_runtime_proxy_container_name: scrambleiq-proxy
-app_runtime_proxy_image: nginx:1.27.5-alpine3.21
-app_runtime_proxy_host_port: 80
-app_runtime_proxy_config_path: /etc/scrambleiq/nginx.conf

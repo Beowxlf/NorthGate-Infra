@@ -1,18 +1,17 @@
 ---
-- name: Validate app_runtime required values
+- name: Validate required deterministic app_runtime values
   ansible.builtin.assert:
     that:
-      - app_runtime_env.START_COMMAND is defined
-      - app_runtime_env.START_COMMAND != 'UNKNOWN'
-      - app_runtime_env.DB_PASSWORD is defined
-      - app_runtime_env.DB_PASSWORD != 'CHANGE_ME'
-      - app_runtime_database_env.POSTGRES_PASSWORD is defined
+      - app_runtime_repo_ref is match('^[0-9a-f]{40}$')
+      - app_runtime_api_env.API_AUTH_TOKEN != 'CHANGE_ME'
       - app_runtime_database_env.POSTGRES_PASSWORD != 'CHANGE_ME'
-    fail_msg: "Set deterministic runtime variables before deployment (START_COMMAND and database secrets)."
+      - app_runtime_web_build_args.VITE_API_AUTH_TOKEN != 'CHANGE_ME'
+    fail_msg: "Set pinned repo ref and non-placeholder auth/database credentials before deployment."
 
-- name: Install container runtime prerequisites
+- name: Install runtime prerequisites
   ansible.builtin.package:
     name:
+      - git
       - docker.io
       - python3-docker
     state: present
@@ -23,7 +22,7 @@
     state: started
     enabled: true
 
-- name: Ensure ScrambleIQ configuration directory exists
+- name: Ensure ScrambleIQ config directory exists
   ansible.builtin.file:
     path: /etc/scrambleiq
     state: directory
@@ -31,13 +30,38 @@
     group: root
     mode: '0750'
 
-- name: Render application environment file
+- name: Checkout pinned ScrambleIQ source
+  ansible.builtin.git:
+    repo: "{{ app_runtime_repo_url }}"
+    dest: "{{ app_runtime_checkout_dir }}"
+    version: "{{ app_runtime_repo_ref }}"
+    force: true
+
+- name: Render API environment file
   ansible.builtin.template:
     src: scrambleiq.env.j2
-    dest: "{{ app_runtime_env_file_path }}"
+    dest: "{{ app_runtime_api_env_file_path }}"
     owner: root
     group: root
     mode: '0640'
+  vars:
+    env_map: "{{ app_runtime_api_env }}"
+
+- name: Build ScrambleIQ API image
+  community.docker.docker_image_build:
+    name: "{{ app_runtime_api_image }}"
+    path: "{{ app_runtime_checkout_dir }}"
+    dockerfile: "{{ app_runtime_packaging_dir }}/Dockerfile"
+    pull: false
+
+- name: Build ScrambleIQ web image
+  community.docker.docker_image_build:
+    name: "{{ app_runtime_web_image }}"
+    path: "{{ app_runtime_checkout_dir }}"
+    dockerfile: "{{ app_runtime_packaging_dir }}/Dockerfile.web"
+    pull: false
+    build:
+      args: "{{ app_runtime_web_build_args }}"
 
 - name: Ensure ScrambleIQ container network exists
   community.docker.docker_network:
@@ -45,9 +69,8 @@
     state: present
 
 - name: Deploy ScrambleIQ database container
-  when: app_runtime_database_enabled | bool
   community.docker.docker_container:
-    name: "{{ app_runtime_database_container_name }}"
+    name: "{{ app_runtime_db_container_name }}"
     image: "{{ app_runtime_database_image }}"
     restart_policy: "{{ app_runtime_restart_policy }}"
     env: "{{ app_runtime_database_env }}"
@@ -56,47 +79,34 @@
     volumes:
       - "{{ app_runtime_database_volume }}:/var/lib/postgresql/data"
     exposed_ports:
-      - "{{ app_runtime_database_port }}"
+      - "5432"
     state: started
 
-- name: Render reverse proxy configuration
-  when: app_runtime_proxy_enabled | bool
-  ansible.builtin.template:
-    src: nginx.conf.j2
-    dest: "{{ app_runtime_proxy_config_path }}"
-    owner: root
-    group: root
-    mode: '0644'
-
-- name: Deploy ScrambleIQ application container
+- name: Deploy ScrambleIQ API container
   community.docker.docker_container:
-    name: "{{ app_runtime_container_name }}"
-    image: "{{ app_runtime_image }}"
-    pull: "{{ app_runtime_pull }}"
+    name: "{{ app_runtime_api_container_name }}"
+    image: "{{ app_runtime_api_image }}"
     restart_policy: "{{ app_runtime_restart_policy }}"
-    env_file: "{{ app_runtime_env_file_path }}"
+    env_file: "{{ app_runtime_api_env_file_path }}"
     networks:
       - name: "{{ app_runtime_network_name }}"
     exposed_ports:
-      - "{{ app_runtime_container_port }}"
+      - "3000"
     log_driver: json-file
     log_options:
       max-size: "10m"
       max-file: "5"
     state: started
 
-- name: Deploy ScrambleIQ reverse proxy container
-  when: app_runtime_proxy_enabled | bool
+- name: Deploy ScrambleIQ web/reverse-proxy container
   community.docker.docker_container:
-    name: "{{ app_runtime_proxy_container_name }}"
-    image: "{{ app_runtime_proxy_image }}"
+    name: "{{ app_runtime_web_container_name }}"
+    image: "{{ app_runtime_web_image }}"
     restart_policy: "{{ app_runtime_restart_policy }}"
     networks:
       - name: "{{ app_runtime_network_name }}"
     ports:
-      - "{{ app_runtime_proxy_host_port }}:80"
-    volumes:
-      - "{{ app_runtime_proxy_config_path }}:/etc/nginx/nginx.conf:ro"
+      - "{{ app_runtime_host_http_port }}:80"
     log_driver: json-file
     log_options:
       max-size: "10m"

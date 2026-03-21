@@ -1,74 +1,94 @@
 # ScrambleIQ Application Architecture (Infrastructure Integration)
 
-## 1. Application Source Analysis Outcome
+## 1. Application Analysis from Real Source Repository
 
-| Analysis Dimension | Result | Evidence Status |
+Source analyzed: `https://github.com/Beowxlf/ScrambleIQ.git` at commit `ca190cc12af74ddb1967bb2148da41cfa24b5b67`.
+
+### 1.1 Application type
+
+| Dimension | Result | Source Evidence |
 |---|---|---|
-| Repository path available in workspace | `UNKNOWN` | ScrambleIQ source repository not present in provided filesystem snapshot. |
-| Runtime language/framework | `UNKNOWN` | No application source files available for direct inspection. |
-| Monolith vs multi-service implementation | `UNKNOWN` | No executable source manifest available. |
-| Build toolchain | `UNKNOWN` | No package/build descriptors available. |
-| Native service ports | `UNKNOWN` | No server bootstrap code available. |
+| Repository model | npm workspace monorepo | Root `package.json` defines workspaces `apps/web`, `apps/api`, `packages/shared`. |
+| Backend | NestJS API (`@scrambleiq/api`) | `apps/api/package.json` scripts and dependencies. |
+| Frontend | React + Vite SPA (`@scrambleiq/web`) | `apps/web/package.json` scripts/dependencies. |
+| Service model | Multi-service (web + api + db) | Web calls API base URL; API optionally uses PostgreSQL via `DATABASE_URL`. |
 
-## 2. Deterministic Deployment Model Implemented
+### 1.2 Runtime requirements
 
-Given source availability gap, this repository now defines a deterministic **hosting envelope** for ScrambleIQ:
+| Component | Runtime | Build Steps | Runtime Port |
+|---|---|---|---|
+| API | Node.js 22, npm workspaces | `npm ci`, build shared package, build API package | `PORT` default `3000` |
+| Web | Node.js 22 for build, NGINX for runtime | `npm ci`, build shared package, build web package (`vite build`) | NGINX `80` |
+| Shared package | TypeScript workspace | built before API/Web runtime start | N/A |
 
-1. Reverse proxy container (NGINX) for ingress and request logging.
-2. Application runtime container (`scrambleiq-app`).
-3. PostgreSQL container (`scrambleiq-db`) for persistent application data.
+### 1.3 External dependencies
 
-### 2.1 Service and Dependency Model
-
-| Service | Depends On | Dependency Type |
+| Dependency | Required | Details |
 |---|---|---|
-| `scrambleiq-db` | Docker runtime, storage volume | Hard |
-| `scrambleiq-app` | `scrambleiq-db`, runtime env variables | Hard |
-| `scrambleiq-proxy` | `scrambleiq-app` | Hard |
+| PostgreSQL | Optional for runtime, required for persisted mode | API uses PostgreSQL only when `DATABASE_URL` is set; otherwise in-memory fallback. |
+| API token | Required for protected API routes | API checks `x-api-key` or `Authorization: Bearer`; `/health` remains public. |
+| Storage volume | Required for DB durability | PostgreSQL state persisted via Docker named volume `scrambleiq_db_data`. |
 
-Order is enforced in Ansible workflow: database -> app -> proxy.
+## 2. Deployment Architecture
 
-## 3. Runtime Configuration Contract
+Deployment model is deterministic multi-container in `app-hosting`:
 
-Environment variables are declared in:
-- `app/.env.example`
-- `ansible/roles/app_runtime/defaults/main.yml`
+1. `scrambleiq-db` (PostgreSQL)
+2. `scrambleiq-api` (NestJS API)
+3. `scrambleiq-web` (NGINX serving frontend and proxying `/api` to API)
 
-Mandatory pre-deployment substitutions:
-- `DB_PASSWORD`
-- `POSTGRES_PASSWORD`
-- `START_COMMAND`
-- Auth-related placeholders if identity integration is enabled.
+### 2.1 Dependency order
 
-## 4. Network and Port Model
+`database -> api -> web_proxy`
 
-| Component | Internal Port | External Exposure |
+This order is enforced in deployment playbook pre-task assertions and role sequencing.
+
+## 3. Environment Variable Contract
+
+### API runtime
+- `PORT` (default `3000`)
+- `WEB_ORIGIN` (CORS origin)
+- `API_AUTH_TOKEN` (required non-placeholder)
+- `DATABASE_URL` (PostgreSQL DSN)
+
+### Web build/runtime
+- `VITE_API_BASE_URL` (defaults to `/api` in this deployment)
+- `VITE_API_AUTH_TOKEN` (embedded in frontend build; must match API token contract)
+
+### Database
+- `POSTGRES_DB`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD` (required non-placeholder)
+
+## 4. Network Exposure Model
+
+| Component | Network | Exposed |
 |---|---|---|
-| Reverse proxy | 80 | Host port 80 (default configurable) |
-| Application | 8080 | Internal Docker network only |
-| PostgreSQL | 5432 | Internal Docker network only |
+| `scrambleiq-db` | internal Docker network | not host-exposed |
+| `scrambleiq-api` | internal Docker network | not host-exposed |
+| `scrambleiq-web` | internal + host | host `:80` (configurable) |
 
-This enforces single-ingress behavior aligned with catalog guidance.
+This aligns with service-catalog guidance: single ingress path to app-hosting services.
 
-## 5. Logging Model and Wazuh Ingestibility
+## 5. Logging and Wazuh Integration Model
 
-### 5.1 Application
-- Application process must log to stdout/stderr (foreground command via `START_COMMAND`).
-- Role config enables Docker JSON logging driver for structured collection.
+### 5.1 Request logging
+NGINX logs all inbound requests (including `/api`) in JSON to stdout.
 
-### 5.2 Reverse proxy
-- NGINX access logs emitted in JSON to `/dev/stdout`.
-- NGINX errors emitted to `/dev/stderr`.
+### 5.2 Error logging
+NGINX error logs go to stderr. API runtime logs/exceptions go to stdout/stderr through container logging.
 
-### 5.3 Security event expectations
-Authentication event logging is enforced by contract variable `LOG_AUTH_EVENTS=true`. Exact event schema remains `UNKNOWN` until source-level instrumentation is validated.
+### 5.3 Authentication event coverage
+API token failures produce HTTP `401` responses; these are captured in NGINX JSON request logs via `status` and URI, enabling Wazuh rule correlation for auth failures.
 
-### 5.4 Wazuh integration path
-Wazuh agent on app-hosting node can ingest Docker container logs from host log paths (`/var/lib/docker/containers/*/*.log`) and forward to manager/indexer pipeline defined in security services model.
+### 5.4 Wazuh ingestion path
+Wazuh agent on app-hosting node ingests Docker JSON log files (`/var/lib/docker/containers/*/*.log`) from:
+- `scrambleiq-web`
+- `scrambleiq-api`
 
-## 6. Gap Register
+## 6. Deterministic Controls
 
-| Gap | Impact | Remediation |
-|---|---|---|
-| ScrambleIQ repository unavailable | Cannot derive concrete runtime/build metadata from code | Import repository into controlled source path; update this document with concrete evidence in same change set. |
-| Auth event schema unknown | Rule mapping in Wazuh incomplete | Add source-based auth logging field mapping and detection rules. |
+- Pinned ScrambleIQ source ref for deployment build.
+- Explicit Docker image tags per pinned ref.
+- Non-placeholder secret/token assertions in Ansible role.
+- Declarative container lifecycle (`unless-stopped`) and network topology.

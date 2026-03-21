@@ -1,31 +1,48 @@
-# ScrambleIQ Application Packaging
+# ScrambleIQ Packaging
 
-## Current State of Source Analysis
+This directory packages the real ScrambleIQ monorepo (`Beowxlf/ScrambleIQ`) into deployable container workloads.
 
-The ScrambleIQ application source code is **not present in this repository workspace**, and outbound network access is restricted in this execution environment. Because of that, concrete runtime inference from source files (language, package manager, build command, framework internals) is `UNKNOWN` in this change set.
+## Verified application model
 
-To preserve deterministic deployment, this package expects a pre-built, deterministic runtime bundle staged into `app/src/` and a deterministic startup script at `app/run.sh`.
+- Monorepo with two primary services:
+  - `@scrambleiq/api` (NestJS + Node.js 22)
+  - `@scrambleiq/web` (React + Vite)
+- Shared workspace package: `@scrambleiq/shared`
+- Runtime data store: PostgreSQL when `DATABASE_URL` is set.
 
-## Required Inputs
+## Images
 
-1. `app/src/` directory populated from the ScrambleIQ repository build output.
-2. `app/run.sh` executable that starts the application in foreground mode and emits logs to stdout/stderr.
+- `app/Dockerfile`: API image build and runtime (`PORT=3000`).
+- `app/Dockerfile.web`: Web static build and NGINX runtime (`:80`) with `/api` reverse-proxy to API.
 
-## Build
+## Deterministic build inputs
+
+Build context must be the ScrambleIQ repository root at pinned ref:
+
+`ca190cc12af74ddb1967bb2148da41cfa24b5b67`
+
+### API image build
 
 ```bash
-docker build -t scrambleiq:local app/
+docker build -f app/Dockerfile -t scrambleiq-api:ca190cc .
 ```
 
-## Run
+### Web image build
 
 ```bash
-docker run --rm --env-file app/.env.example -p 8080:8080 scrambleiq:local
+docker build -f app/Dockerfile.web \
+  --build-arg VITE_API_BASE_URL=/api \
+  --build-arg VITE_API_AUTH_TOKEN=scrambleiq-local-dev-token \
+  -t scrambleiq-web:ca190cc .
 ```
 
-## Determinism Constraints
+## Runtime topology
 
-- Container image pinning uses `alpine:3.21.3`.
-- Runtime user/group IDs are explicit.
-- Startup command is explicit and foreground-only.
-- Missing runtime bundle fails build deterministically.
+- `scrambleiq-db` (PostgreSQL 16)
+- `scrambleiq-api` (NestJS)
+- `scrambleiq-web` (NGINX serving web + proxying `/api`)
+
+All request, error, and auth-failure events are observable through container stdout/stderr:
+
+- NGINX JSON access/error logs
+- API stdout/stderr (NestJS logger + exceptions)
