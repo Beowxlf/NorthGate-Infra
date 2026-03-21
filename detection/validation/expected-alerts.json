@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "generated_for_phase": "phase5-continuous-validation",
+  "scenarios": [
+    {
+      "id": "phase3_blue_team_validation",
+      "name": "Phase 3 Blue Team Validation",
+      "caldera": {
+        "operation_name": "northgate-phase3-validation",
+        "adversary_id": "phase3-blue-team-adversary",
+        "planner_id": "atomic",
+        "source_id": "ed32f34c-1d6f-4f5f-91a9-5e0fd5d73389"
+      },
+      "mapping": [
+        {
+          "attack_step": "Linux process marker execution",
+          "mitre_attack": "T1059.004",
+          "expected_log": "phase3-caldera process execution marker",
+          "detection": "Wazuh custom rule 120001",
+          "expected_alert_rule_id": 120001
+        },
+        {
+          "attack_step": "Linux suspicious command simulation",
+          "mitre_attack": "T1059",
+          "expected_log": "phase3 suspicious command",
+          "detection": "Wazuh custom rule 120002",
+          "expected_alert_rule_id": 120002
+        },
+        {
+          "attack_step": "Windows failed authentication simulation",
+          "mitre_attack": "T1110",
+          "expected_log": "Security EventID 4625",
+          "detection": "Wazuh custom rule 120003",
+          "expected_alert_rule_id": 120003
+        },
+        {
+          "attack_step": "Windows suspicious command line",
+          "mitre_attack": "T1059.003",
+          "expected_log": "Sysmon EventID 1 with whoami/net user/cmd.exe /c",
+          "detection": "Wazuh custom rule 120004",
+          "expected_alert_rule_id": 120004
+        }
+      ]
+    }
+  ]
+}

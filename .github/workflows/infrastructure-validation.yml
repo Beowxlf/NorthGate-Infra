@@ -1,0 +1,168 @@
+name: Infrastructure Validation
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v3
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible-core ansible-lint yamllint
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Terraform formatting and validation
+        run: |
+          terraform -chdir=terraform/environments/test-core init -backend=false
+          terraform -chdir=terraform/environments/test-core fmt -check -recursive
+          terraform -chdir=terraform/environments/test-core validate
+
+      - name: Ansible lint and syntax
+        run: |
+          ansible-lint ansible/playbooks/*.yml
+          ansible-playbook -i ansible/inventory/test-core/hosts.yml ansible/playbooks/phase_3_detection_platform.yml --syntax-check
+          ansible-playbook -i ansible/inventory/test-core/hosts.yml ansible/playbooks/phase_5_validation_hooks.yml --syntax-check
+
+      - name: Validate detection mapping schema
+        run: |
+          jq -e '.schema_version and (.scenarios | type == "array" and length > 0)' detection/validation/expected-alerts.json
+
+  build:
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v3
+
+      - name: Packer init and validate
+        run: |
+          packer init packer/linux-base/template.pkr.hcl
+          packer validate packer/linux-base/template.pkr.hcl
+          packer init packer/windows-base/template.pkr.hcl
+          packer validate packer/windows-base/template.pkr.hcl
+
+  provision:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform plan simulation
+        run: |
+          terraform -chdir=terraform/environments/test-core init -backend=false
+          terraform -chdir=terraform/environments/test-core plan -refresh=false -lock=false -input=false -var-file=terraform.tfvars.example -out=tfplan
+
+  configure:
+    runs-on: ubuntu-latest
+    needs: provision
+    env:
+      ANSIBLE_HOST_KEY_CHECKING: "False"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible and jq
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible-core
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Ansible configuration validation hooks
+        run: |
+          ansible-playbook -i ansible/inventory/test-core/hosts.yml ansible/playbooks/phase_5_validation_hooks.yml --check
+
+      - name: Drift detection (no changes expected)
+        run: |
+          scripts/check_ansible_drift.sh
+
+      - name: Upload drift evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-report
+          path: artifacts/drift-report.json
+
+  detection_validation:
+    runs-on: ubuntu-latest
+    needs: configure
+    env:
+      CALDERA_URL: ${{ secrets.CALDERA_URL }}
+      CALDERA_API_KEY: ${{ secrets.CALDERA_API_KEY }}
+      WAZUH_URL: ${{ secrets.WAZUH_URL }}
+      WAZUH_USERNAME: ${{ secrets.WAZUH_USERNAME }}
+      WAZUH_PASSWORD: ${{ secrets.WAZUH_PASSWORD }}
+      DOMAIN_URL: ${{ secrets.DOMAIN_URL }}
+      DNS_QUERY_NAME: ${{ secrets.DNS_QUERY_NAME }}
+      SCRAMBLEIQ_URL: ${{ secrets.SCRAMBLEIQ_URL }}
+      SCRAMBLEIQ_API_KEY: ${{ secrets.SCRAMBLEIQ_API_KEY }}
+      EXPECTED_WAZUH_AGENTS: ${{ secrets.EXPECTED_WAZUH_AGENTS }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Detection validation
+        run: |
+          scripts/run_detection_validation.sh phase3_blue_team_validation
+
+      - name: System integrity checks
+        run: |
+          scripts/run_system_integrity_checks.sh
+
+      - name: Build validation summary
+        run: |
+          jq -nc \
+            --slurpfile detection artifacts/detection-validation-report.json \
+            --slurpfile integrity artifacts/system-integrity-report.json \
+            '{
+              generated_at: now | todate,
+              attack_execution_result: $detection[0].attack_execution,
+              detection_result: $detection[0].detection_validation,
+              system_integrity_result: $integrity[0]
+            }' > artifacts/validation-summary.json
+          cat artifacts/validation-summary.json
+
+      - name: Upload validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase5-validation-evidence
+          path: |
+            artifacts/detection-validation-report.json
+            artifacts/system-integrity-report.json
+            artifacts/validation-summary.json

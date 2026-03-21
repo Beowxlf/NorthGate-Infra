@@ -1,0 +1,54 @@
+---
+- name: Phase 5 system integrity hooks from control plane
+  hosts: control_plane[0]
+  gather_facts: false
+  vars:
+    validation_domain_url: "{{ lookup('env', 'DOMAIN_URL') | default('https://example.invalid', true) }}"
+    validation_domain_name: "{{ lookup('env', 'DNS_QUERY_NAME') | default('example.invalid', true) }}"
+    validation_scrambleiq_health_url: "{{ lookup('env', 'SCRAMBLEIQ_HEALTH_URL') | default('http://127.0.0.1:8080/api/health', true) }}"
+  tasks:
+    - name: Validate DNS resolver returns records for managed domain
+      ansible.builtin.command: "getent hosts {{ validation_domain_name }}"
+      changed_when: false
+
+    - name: Validate managed domain endpoint is reachable
+      ansible.builtin.uri:
+        url: "{{ validation_domain_url }}"
+        method: GET
+        return_content: false
+        validate_certs: false
+        status_code: [200, 301, 302]
+
+    - name: Validate ScrambleIQ health endpoint is reachable
+      ansible.builtin.uri:
+        url: "{{ validation_scrambleiq_health_url }}"
+        method: GET
+        return_content: false
+        status_code: 200
+
+- name: Phase 5 Wazuh registration integrity hook
+  hosts: wazuh_manager
+  gather_facts: false
+  become: true
+  vars:
+    expected_linux_endpoints: "{{ groups['os_linux'] | difference(groups['wazuh_manager'] | default([])) }}"
+    expected_windows_endpoints: "{{ groups['os_windows'] | default([]) }}"
+  tasks:
+    - name: Collect active Wazuh agents
+      ansible.builtin.command: /var/ossec/bin/agent_control -ls
+      register: wazuh_agent_list
+      changed_when: false
+
+    - name: Assert Linux endpoints remain registered
+      ansible.builtin.assert:
+        that:
+          - wazuh_agent_list.stdout is search(item)
+        fail_msg: "Expected Linux endpoint {{ item }} missing from Wazuh manager"
+      loop: "{{ expected_linux_endpoints }}"
+
+    - name: Assert Windows endpoints remain registered
+      ansible.builtin.assert:
+        that:
+          - wazuh_agent_list.stdout is search(item)
+        fail_msg: "Expected Windows endpoint {{ item }} missing from Wazuh manager"
+      loop: "{{ expected_windows_endpoints }}"
