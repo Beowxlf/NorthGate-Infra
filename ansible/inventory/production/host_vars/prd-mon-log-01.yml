@@ -1,0 +1,5 @@
+---
+ng_zone: monitoring-security
+ng_role: log-pipeline
+ansible_host: 10.50.30.11
+ng_access_path: via-bastion

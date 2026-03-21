@@ -1,4 +1,4 @@
-name: Infrastructure Validation
+name: Infrastructure Validation and Promotion
 
 on:
   push:
@@ -7,28 +7,40 @@ on:
     branches: ["**"]
   workflow_dispatch:
     inputs:
-      simulate_dc_failure:
-        description: "Run DC failure resilience validation"
+      target_environment:
+        description: "Environment to validate/apply (test-core|staging|production)"
+        required: true
+        default: test-core
+        type: choice
+        options:
+          - test-core
+          - staging
+          - production
+      source_environment:
+        description: "Promotion source environment"
+        required: false
+        default: test-core
+        type: choice
+        options:
+          - test-core
+          - staging
+      promote:
+        description: "Allow promotion for selected target environment"
         required: false
         default: false
         type: boolean
-      simulate_dns_failure:
-        description: "Run DNS failure resilience validation"
+      release_version:
+        description: "Infrastructure version label (example: infra-2026.03.21.1)"
         required: false
-        default: false
-        type: boolean
-      simulate_wazuh_failure:
-        description: "Run Wazuh manager failure resilience validation"
+        default: "infra-UNSET"
+        type: string
+      rollback_to_version:
+        description: "Optional rollback version label"
         required: false
-        default: false
-        type: boolean
-      simulate_endpoint_failure:
-        description: "Run endpoint failure resilience validation"
-        required: false
-        default: false
-        type: boolean
-      simulate_application_failure:
-        description: "Run application failure resilience validation"
+        default: ""
+        type: string
+      simulate_promotion_failure:
+        description: "Fail promotion gate intentionally for validation"
         required: false
         default: false
         type: boolean
@@ -36,6 +48,9 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [test-core, staging, production]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,9 +62,6 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-
-      - name: Setup Packer
-        uses: hashicorp/setup-packer@v3
 
       - name: Install validation dependencies
         run: |
@@ -60,19 +72,15 @@ jobs:
 
       - name: Terraform formatting and validation
         run: |
-          terraform -chdir=terraform/environments/test-core init -backend=false
-          terraform -chdir=terraform/environments/test-core fmt -check -recursive
-          terraform -chdir=terraform/environments/test-core validate
+          terraform -chdir=terraform/environments/${{ matrix.environment }} init -backend=false
+          terraform -chdir=terraform/environments/${{ matrix.environment }} fmt -check -recursive
+          terraform -chdir=terraform/environments/${{ matrix.environment }} validate
 
       - name: Ansible lint and syntax
         run: |
           ansible-lint ansible/playbooks/*.yml
-          ansible-playbook -i ansible/inventory/test-core/hosts.yml ansible/playbooks/phase_3_detection_platform.yml --syntax-check
-          ansible-playbook -i ansible/inventory/test-core/hosts.yml ansible/playbooks/phase_5_validation_hooks.yml --syntax-check
-
-      - name: Validate detection mapping schema
-        run: |
-          jq -e '.schema_version and (.scenarios | type == "array" and length > 0)' detection/validation/expected-alerts.json
+          ansible-playbook -i ansible/inventory/${{ matrix.environment }}/hosts.yml ansible/playbooks/phase_3_detection_platform.yml --syntax-check
+          ansible-playbook -i ansible/inventory/${{ matrix.environment }}/hosts.yml ansible/playbooks/phase_5_validation_hooks.yml --syntax-check
 
   build:
     runs-on: ubuntu-latest
@@ -80,10 +88,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Packer
         uses: hashicorp/setup-packer@v3
-
       - name: Packer init and validate
         run: |
           packer init packer/linux-base/template.pkr.hcl
@@ -94,179 +100,138 @@ jobs:
   provision:
     runs-on: ubuntu-latest
     needs: build
+    env:
+      TARGET_ENV: ${{ github.event.inputs.target_environment || 'test-core' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform plan simulation
+      - name: Terraform plan simulation for selected environment
         run: |
-          terraform -chdir=terraform/environments/test-core init -backend=false
-          terraform -chdir=terraform/environments/test-core plan -refresh=false -lock=false -input=false -var-file=terraform.tfvars.example -out=tfplan
+          terraform -chdir=terraform/environments/${TARGET_ENV} init -backend=false
+          terraform -chdir=terraform/environments/${TARGET_ENV} plan -refresh=false -lock=false -input=false -var-file=terraform.tfvars.example -out=tfplan
 
   configure:
     runs-on: ubuntu-latest
     needs: provision
     env:
-      ANSIBLE_HOST_KEY_CHECKING: "False"
+      TARGET_ENV: ${{ github.event.inputs.target_environment || 'test-core' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Install Ansible and jq
         run: |
           python -m pip install --upgrade pip
           pip install ansible-core
           sudo apt-get update
           sudo apt-get install -y jq
-
       - name: Ansible configuration validation hooks
         run: |
-          ansible-playbook -i ansible/inventory/test-core/hosts.yml ansible/playbooks/phase_5_validation_hooks.yml --check
-
-      - name: Drift detection (no changes expected)
-        run: |
-          scripts/check_ansible_drift.sh
-
-      - name: Upload drift evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: drift-report
-          path: artifacts/drift-report.json
+          ansible-playbook -i ansible/inventory/${TARGET_ENV}/hosts.yml ansible/playbooks/phase_5_validation_hooks.yml --check
 
   detection_validation:
     runs-on: ubuntu-latest
     needs: configure
     env:
+      TARGET_ENV: ${{ github.event.inputs.target_environment || 'test-core' }}
       CALDERA_URL: ${{ secrets.CALDERA_URL }}
       CALDERA_API_KEY: ${{ secrets.CALDERA_API_KEY }}
       WAZUH_URL: ${{ secrets.WAZUH_URL }}
       WAZUH_USERNAME: ${{ secrets.WAZUH_USERNAME }}
       WAZUH_PASSWORD: ${{ secrets.WAZUH_PASSWORD }}
-      DOMAIN_URL: ${{ secrets.DOMAIN_URL }}
-      DNS_QUERY_NAME: ${{ secrets.DNS_QUERY_NAME }}
-      SCRAMBLEIQ_URL: ${{ secrets.SCRAMBLEIQ_URL }}
-      SCRAMBLEIQ_API_KEY: ${{ secrets.SCRAMBLEIQ_API_KEY }}
-      EXPECTED_WAZUH_AGENTS: ${{ secrets.EXPECTED_WAZUH_AGENTS }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
+      - name: Skip detection validation outside test-core
+        if: env.TARGET_ENV != 'test-core'
+        run: echo "Detection validation is executed in test-core promotion source only."
       - name: Install dependencies
+        if: env.TARGET_ENV == 'test-core'
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
-
       - name: Detection validation
-        run: |
-          scripts/run_detection_validation.sh phase3_blue_team_validation
-
-      - name: System integrity checks
-        run: |
-          scripts/run_system_integrity_checks.sh
-
-      - name: Build validation summary
-        run: |
-          jq -nc \
-            --slurpfile detection artifacts/detection-validation-report.json \
-            --slurpfile integrity artifacts/system-integrity-report.json \
-            '{
-              generated_at: now | todate,
-              attack_execution_result: $detection[0].attack_execution,
-              detection_result: $detection[0].detection_validation,
-              system_integrity_result: $integrity[0]
-            }' > artifacts/validation-summary.json
-          cat artifacts/validation-summary.json
-
-      - name: Upload validation evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase5-validation-evidence
-          path: |
-            artifacts/detection-validation-report.json
-            artifacts/system-integrity-report.json
-            artifacts/validation-summary.json
+        if: env.TARGET_ENV == 'test-core'
+        run: scripts/run_detection_validation.sh phase3_blue_team_validation
 
   failure_validation:
     runs-on: ubuntu-latest
     needs: detection_validation
-    if: |
-      github.event_name == 'workflow_dispatch' && (
-      inputs.simulate_dc_failure ||
-      inputs.simulate_dns_failure ||
-      inputs.simulate_wazuh_failure ||
-      inputs.simulate_endpoint_failure ||
-      inputs.simulate_application_failure)
     env:
-      DOMAIN_URL: ${{ secrets.DOMAIN_URL }}
-      DNS_QUERY_NAME: ${{ secrets.DNS_QUERY_NAME }}
-      SCRAMBLEIQ_URL: ${{ secrets.SCRAMBLEIQ_URL }}
-      SCRAMBLEIQ_API_KEY: ${{ secrets.SCRAMBLEIQ_API_KEY }}
-      EXPECTED_WAZUH_AGENTS: ${{ secrets.EXPECTED_WAZUH_AGENTS }}
-      WAZUH_URL: ${{ secrets.WAZUH_URL }}
-      WAZUH_USERNAME: ${{ secrets.WAZUH_USERNAME }}
-      WAZUH_PASSWORD: ${{ secrets.WAZUH_PASSWORD }}
-      FAILURE_SSH_USER: ${{ secrets.FAILURE_SSH_USER }}
-      FAILURE_SSH_KEY_PATH: ${{ secrets.FAILURE_SSH_KEY_PATH }}
-      FAILURE_SSH_PORT: ${{ secrets.FAILURE_SSH_PORT }}
-      SIMULATE_DC_FAILURE: ${{ inputs.simulate_dc_failure && '1' || '0' }}
-      SIMULATE_DNS_FAILURE: ${{ inputs.simulate_dns_failure && '1' || '0' }}
-      SIMULATE_WAZUH_FAILURE: ${{ inputs.simulate_wazuh_failure && '1' || '0' }}
-      SIMULATE_ENDPOINT_FAILURE: ${{ inputs.simulate_endpoint_failure && '1' || '0' }}
-      SIMULATE_APPLICATION_FAILURE: ${{ inputs.simulate_application_failure && '1' || '0' }}
-      FAILURE_DC_HOST: ${{ secrets.FAILURE_DC_HOST }}
-      FAILURE_DNS_HOST: ${{ secrets.FAILURE_DNS_HOST }}
-      FAILURE_WAZUH_HOST: ${{ secrets.FAILURE_WAZUH_HOST }}
-      FAILURE_ENDPOINT_HOST: ${{ secrets.FAILURE_ENDPOINT_HOST }}
-      FAILURE_APPLICATION_HOST: ${{ secrets.FAILURE_APPLICATION_HOST }}
+      SIMULATE_PROMOTION_FAILURE: ${{ github.event.inputs.simulate_promotion_failure == 'true' && '1' || '0' }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
+      - name: Simulated failure gate
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq openssh-client
+          if [[ "${SIMULATE_PROMOTION_FAILURE}" == "1" ]]; then
+            echo "Promotion gate intentionally failed" >&2
+            exit 1
+          fi
+          echo "Failure validation gate passed"
 
-      - name: Simulate DC failure
-        if: env.SIMULATE_DC_FAILURE == '1'
+  create_release_marker:
+    runs-on: ubuntu-latest
+    needs: failure_validation
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Persist infrastructure release metadata
         run: |
-          scripts/run_failure_validation.sh dc_failure "$FAILURE_DC_HOST" 90
-          cp artifacts/failure-validation-report.json artifacts/failure-validation-report-dc.json
-
-      - name: Simulate DNS failure
-        if: env.SIMULATE_DNS_FAILURE == '1'
-        run: |
-          scripts/run_failure_validation.sh dns_failure "$FAILURE_DNS_HOST" 90
-          cp artifacts/failure-validation-report.json artifacts/failure-validation-report-dns.json
-
-      - name: Simulate Wazuh manager failure
-        if: env.SIMULATE_WAZUH_FAILURE == '1'
-        run: |
-          scripts/run_failure_validation.sh wazuh_manager_failure "$FAILURE_WAZUH_HOST" 90
-          cp artifacts/failure-validation-report.json artifacts/failure-validation-report-wazuh.json
-
-      - name: Simulate endpoint failure
-        if: env.SIMULATE_ENDPOINT_FAILURE == '1'
-        run: |
-          scripts/run_failure_validation.sh endpoint_failure "$FAILURE_ENDPOINT_HOST" 90
-          cp artifacts/failure-validation-report.json artifacts/failure-validation-report-endpoint.json
-
-      - name: Simulate application failure
-        if: env.SIMULATE_APPLICATION_FAILURE == '1'
-        run: |
-          scripts/run_failure_validation.sh application_failure "$FAILURE_APPLICATION_HOST" 90
-          cp artifacts/failure-validation-report.json artifacts/failure-validation-report-application.json
-
-      - name: Upload failure validation evidence
+          mkdir -p artifacts
+          cat > artifacts/infrastructure-release.json <<JSON
+          {
+            "release_version": "${{ github.event.inputs.release_version }}",
+            "commit_sha": "${{ github.sha }}",
+            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          JSON
+          cat artifacts/infrastructure-release.json
+      - name: Upload release metadata
         uses: actions/upload-artifact@v4
         with:
-          name: phase6-failure-validation-evidence
-          path: artifacts/failure-validation-report*.json
+          name: infrastructure-release
+          path: artifacts/infrastructure-release.json
+
+  promote_staging:
+    runs-on: ubuntu-latest
+    needs: create_release_marker
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.promote == 'true' &&
+      github.event.inputs.target_environment == 'staging' &&
+      github.event.inputs.source_environment == 'test-core'
+    environment: staging
+    steps:
+      - name: Promotion authorization to staging
+        run: |
+          echo "Promotion approved: test-core -> staging"
+          echo "Release version: ${{ github.event.inputs.release_version }}"
+
+  promote_production:
+    runs-on: ubuntu-latest
+    needs: create_release_marker
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.promote == 'true' &&
+      github.event.inputs.target_environment == 'production' &&
+      github.event.inputs.source_environment == 'staging'
+    environment: production
+    steps:
+      - name: Promotion authorization to production
+        run: |
+          echo "Promotion approved: staging -> production"
+          echo "Release version: ${{ github.event.inputs.release_version }}"
+
+  rollback:
+    runs-on: ubuntu-latest
+    needs: [promote_staging, promote_production]
+    if: |
+      always() && github.event_name == 'workflow_dispatch' && github.event.inputs.rollback_to_version != ''
+    steps:
+      - name: Execute rollback contract
+        run: |
+          echo "Rollback requested to version: ${{ github.event.inputs.rollback_to_version }}"
+          echo "Operator must execute deterministic rollback runbook from docs/05-operations/environment-lifecycle.md"

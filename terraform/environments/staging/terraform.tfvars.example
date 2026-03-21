@@ -1,0 +1,62 @@
+libvirt_uri       = "qemu:///system"
+storage_pool_path = "/var/lib/libvirt/images/staging"
+
+network_name          = "staging-net"
+network_domain        = "staging.northgate.local"
+network_cidr          = "10.40.20.0/24"
+network_gateway       = "10.40.20.1"
+network_prefix_length = 24
+network_dns_servers   = ["10.40.20.11"]
+
+linux_control_vm = {
+  name                = "stg-mgmt-ansible-01"
+  cpu_count           = 2
+  memory_mb           = 4096
+  disk_size_gb        = 40
+  disk_type           = "qcow2"
+  interface_name      = "ens3"
+  ip_address          = "10.40.20.21"
+  admin_username      = "svc_ansible"
+  ssh_authorized_keys = ["ssh-ed25519 AAAA...replace-me"]
+  base_image_id       = "linux-base-v20260320"
+  base_image_version  = "2026.03.20"
+  base_image_source   = "packer/linux-base"
+}
+
+wazuh_vm = {
+  name                = "stg-sec-wazuh-01"
+  cpu_count           = 4
+  memory_mb           = 8192
+  disk_size_gb        = 120
+  disk_type           = "qcow2"
+  interface_name      = "ens3"
+  ip_address          = "10.40.20.31"
+  admin_username      = "svc_ansible"
+  ssh_authorized_keys = ["ssh-ed25519 AAAA...replace-me"]
+  base_image_id       = "linux-base-v20260320"
+  base_image_version  = "2026.03.20"
+  base_image_source   = "packer/linux-base"
+}
+
+domain_controller_vm = {
+  name               = "stg-core-dc-01"
+  cpu_count          = 4
+  memory_mb          = 8192
+  disk_size_gb       = 120
+  disk_type          = "qcow2"
+  interface_name     = "Ethernet"
+  ip_address         = "10.40.20.11"
+  base_image_id      = "windows-server-2022-base-v20260320"
+  base_image_version = "2026.03.20"
+  base_image_source  = "packer/windows-base"
+  winrm = {
+    transport = "https"
+    port      = 5986
+    use_tls   = true
+  }
+  administrator_access = {
+    username = "svc_ansible"
+    method   = "password"
+    secret   = "REPLACE_WITH_VAULT_SECRET"
+  }
+}

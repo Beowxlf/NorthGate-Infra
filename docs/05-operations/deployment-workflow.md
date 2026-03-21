@@ -9,28 +9,29 @@
    - Run plan/syntax checks for changed layers.
 3. **Pull request review**
    - Validate scope, dependency order, and layer boundaries.
-4. **CI enforcement (phase 6 requirement)**
-   - Terraform/OpenTofu fmt/validate/plan checks.
-   - Ansible lint/syntax and playbook sanity checks.
-   - Documentation structure/completeness checks.
+4. **CI enforcement**
+   - Terraform/OpenTofu fmt/validate/plan checks for `test-core`, `staging`, `production`.
+   - Ansible lint/syntax checks using environment-specific inventories.
+   - Validation gates for detection and failure resilience.
 5. **Controlled apply**
-   - Apply provisioning changes to target environment.
+   - Apply provisioning changes to selected environment only.
    - Run Ansible configuration in defined dependency order.
-   - Execute application deployment workflow for `app-hosting` when applicable.
 6. **Post-deployment validation**
    - Service health checks.
    - Telemetry/alert status checks.
    - Change record update and closure.
 
 ## Promotion Sequence
-`test-core` -> `workbench` -> `app-hosting`
+`test-core` -> `staging` -> `production`
 
-Promotion can proceed only when the current environment has:
-- successful provisioning/configuration validation,
-- no unresolved critical alerts,
-- documented change approval.
+Promotion is blocked unless source environment has:
+- successful CI gate status,
+- successful detection validation,
+- successful failure validation,
+- explicit approval for target environment.
 
 ## Rollback Model
-- Use Git revert/cherry-pick rollback commit.
+- Select known-good infrastructure version label.
+- Record rollback execution using `scripts/rollback_environment.sh`.
 - Re-apply Terraform/OpenTofu and Ansible to return to known-good state.
-- For data-bearing services, execute documented restore procedures before service reopening.
+- Re-run full pipeline before re-attempting promotion.

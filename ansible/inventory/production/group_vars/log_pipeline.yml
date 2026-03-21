@@ -1,0 +1,5 @@
+---
+ng_service_layer: observability
+ng_target_zone: monitoring-security
+ng_services:
+  - central_log_pipeline
