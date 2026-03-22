@@ -1,0 +1,28 @@
+<group name="northgate,phase8,compliance,policy_enforcement,">
+  <rule id="120101" level="10">
+    <if_group>syscheck</if_group>
+    <field name="syscheck.path">^/etc/ssh/sshd_config$</field>
+    <description>NorthGate Phase 8 policy violation candidate: SSH configuration drift detected</description>
+    <group>compliance_violation,ssh,drift,phase8,</group>
+    <mitre>
+      <id>T1562</id>
+    </mitre>
+  </rule>
+
+  <rule id="120102" level="9">
+    <if_group>syscheck</if_group>
+    <field name="syscheck.path" type="pcre2">^/etc/systemd/system/.*\.service$</field>
+    <description>NorthGate Phase 8 unauthorized service definition change detected</description>
+    <group>compliance_violation,service_change,drift,phase8,</group>
+    <mitre>
+      <id>T1543</id>
+    </mitre>
+  </rule>
+
+  <rule id="120103" level="11">
+    <if_group>syslog</if_group>
+    <match>FAILED_COMPLIANCE_GATE</match>
+    <description>NorthGate Phase 8 CI compliance gate failed</description>
+    <group>compliance_violation,ci_gate,phase8,</group>
+  </rule>
+</group>

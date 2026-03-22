@@ -9,3 +9,4 @@ Operational procedures including deployment runbooks, monitoring practices, inci
 ## Phase 7 Additions
 - `promotion-workflow.md`: deterministic promotion path, required gates, and approval controls.
 - `environment-lifecycle.md`: environment purpose, lifecycle stages, isolation rules, deployment strategy, and rollback model.
+- `security-enforcement.md`: deterministic compliance enforcement, drift detection, and response contract for Phase 8.

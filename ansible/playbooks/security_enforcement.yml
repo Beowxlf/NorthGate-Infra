@@ -1,0 +1,7 @@
+---
+- name: Phase 8 security hardening and policy enforcement
+  hosts: os_linux
+  gather_facts: true
+  become: true
+  roles:
+    - role: hardening

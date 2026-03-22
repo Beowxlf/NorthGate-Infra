@@ -1,0 +1,64 @@
+---
+hardening_enabled: true
+
+hardening_ssh_manage: true
+hardening_ssh_service_names:
+  Debian: ssh
+  RedHat: sshd
+  Suse: sshd
+hardening_ssh_settings:
+  - { regexp: '^#?PermitRootLogin\\s+', line: 'PermitRootLogin no' }
+  - { regexp: '^#?PasswordAuthentication\\s+', line: 'PasswordAuthentication no' }
+  - { regexp: '^#?PubkeyAuthentication\\s+', line: 'PubkeyAuthentication yes' }
+  - { regexp: '^#?PermitEmptyPasswords\\s+', line: 'PermitEmptyPasswords no' }
+  - { regexp: '^#?MaxAuthTries\\s+', line: 'MaxAuthTries 3' }
+  - { regexp: '^#?ClientAliveInterval\\s+', line: 'ClientAliveInterval 300' }
+  - { regexp: '^#?ClientAliveCountMax\\s+', line: 'ClientAliveCountMax 2' }
+
+hardening_users:
+  - name: ops
+    comment: Operations User
+    groups: [sudo]
+    shell: /bin/bash
+    state: present
+    ssh_key_env: HARDENING_OPS_SSH_PUBLIC_KEY
+
+hardening_service_accounts:
+  - name: svc_wazuh
+    comment: Wazuh service integration account
+    shell: /usr/sbin/nologin
+    state: present
+
+hardening_allowed_services:
+  - ssh
+  - cron
+  - rsyslog
+  - wazuh-agent
+
+hardening_disable_services:
+  - telnet
+  - tftp
+  - avahi-daemon
+  - cups
+
+hardening_firewall_enabled: true
+hardening_firewall_provider:
+  Debian: ufw
+  RedHat: firewalld
+  Suse: firewalld
+hardening_firewall_allowed_tcp_ports:
+  - 22
+  - 1514
+  - 1515
+  - 55000
+hardening_firewall_allowed_udp_ports:
+  - 53
+
+hardening_required_log_paths:
+  - /var/log/auth.log
+  - /var/log/syslog
+
+hardening_secret_sources:
+  required_env_vars:
+    - WAZUH_API_PASSWORD
+    - CALDERA_API_KEY

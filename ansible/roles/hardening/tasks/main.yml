@@ -1,0 +1,162 @@
+---
+- name: Resolve OS-specific group map for managed users
+  ansible.builtin.set_fact:
+    hardening_default_priv_group: "{{ 'sudo' if ansible_os_family == 'Debian' else 'wheel' }}"
+
+- name: Enforce least-privilege managed users
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    comment: "{{ item.comment | default(item.name) }}"
+    groups: "{{ item.groups | default([hardening_default_priv_group]) }}"
+    append: true
+    shell: "{{ item.shell | default('/bin/bash') }}"
+    state: "{{ item.state | default('present') }}"
+    create_home: true
+  loop: "{{ hardening_users }}"
+
+- name: Ensure .ssh directory exists for managed users
+  ansible.builtin.file:
+    path: "/home/{{ item.name }}/.ssh"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: '0700'
+  loop: "{{ hardening_users }}"
+  when:
+    - item.ssh_key_env is defined
+    - lookup('ansible.builtin.env', item.ssh_key_env) | length > 0
+
+- name: Enforce key-based SSH auth for managed users
+  ansible.builtin.lineinfile:
+    path: "/home/{{ item.name }}/.ssh/authorized_keys"
+    line: "{{ lookup('ansible.builtin.env', item.ssh_key_env) }}"
+    create: true
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: '0600'
+    state: present
+  loop: "{{ hardening_users }}"
+  when:
+    - item.ssh_key_env is defined
+    - lookup('ansible.builtin.env', item.ssh_key_env) | length > 0
+
+- name: Enforce service accounts with non-interactive shell
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    comment: "{{ item.comment | default(item.name) }}"
+    shell: "{{ item.shell | default('/usr/sbin/nologin') }}"
+    password_lock: true
+    create_home: false
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ hardening_service_accounts }}"
+
+- name: Apply SSH daemon hardening settings
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  loop: "{{ hardening_ssh_settings }}"
+  when: hardening_ssh_manage
+  notify: Restart SSH service
+
+- name: Install firewall packages
+  ansible.builtin.package:
+    name: iptables
+    state: present
+  when: hardening_firewall_enabled
+
+- name: Set default INPUT firewall policy to DROP
+  ansible.builtin.iptables:
+    chain: INPUT
+    policy: DROP
+  when: hardening_firewall_enabled
+
+- name: Set default FORWARD firewall policy to DROP
+  ansible.builtin.iptables:
+    chain: FORWARD
+    policy: DROP
+  when: hardening_firewall_enabled
+
+- name: Set default OUTPUT firewall policy to ACCEPT
+  ansible.builtin.iptables:
+    chain: OUTPUT
+    policy: ACCEPT
+  when: hardening_firewall_enabled
+
+- name: Allow established inbound traffic
+  ansible.builtin.iptables:
+    chain: INPUT
+    ctstate: ESTABLISHED,RELATED
+    jump: ACCEPT
+    action: insert
+    rule_num: 1
+  when: hardening_firewall_enabled
+
+- name: Allow loopback inbound traffic
+  ansible.builtin.iptables:
+    chain: INPUT
+    in_interface: lo
+    jump: ACCEPT
+    action: insert
+    rule_num: 1
+  when: hardening_firewall_enabled
+
+- name: Enforce firewall allow-list for required TCP ports
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "{{ item }}"
+    ctstate: NEW
+    jump: ACCEPT
+    action: insert
+  loop: "{{ hardening_firewall_allowed_tcp_ports }}"
+  when: hardening_firewall_enabled
+
+- name: Enforce firewall allow-list for required UDP ports
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: udp
+    destination_port: "{{ item }}"
+    jump: ACCEPT
+    action: insert
+  loop: "{{ hardening_firewall_allowed_udp_ports }}"
+  when: hardening_firewall_enabled
+
+- name: Disable unnecessary services
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop: "{{ hardening_disable_services }}"
+  failed_when: false
+
+- name: Gather service facts for policy assertions
+  ansible.builtin.service_facts:
+
+- name: Assert disallowed services are not running
+  ansible.builtin.assert:
+    that:
+      - "(item + '.service') not in ansible_facts.services or ansible_facts.services[item + '.service'].state != 'running'"
+    fail_msg: "Disallowed service is running: {{ item }}"
+  loop: "{{ hardening_disable_services }}"
+
+- name: Assert logging paths exist
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: hardening_log_path_stats
+  loop: "{{ hardening_required_log_paths }}"
+
+- name: Assert logging paths are present
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Required log path missing: {{ item.item }}"
+  loop: "{{ hardening_log_path_stats.results }}"
+
+- name: Assert security secret sources are externalized
+  ansible.builtin.assert:
+    that:
+      - lookup('ansible.builtin.env', item) | length > 0
+    fail_msg: "Required secret environment variable is missing: {{ item }}"
+  loop: "{{ hardening_secret_sources.required_env_vars }}"
