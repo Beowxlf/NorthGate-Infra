@@ -1,0 +1,15 @@
+{
+  "authentication": {
+    "permit_root_login": "no",
+    "password_authentication": "no",
+    "pubkey_authentication": "yes"
+  },
+  "allowed_services": ["ssh", "cron", "rsyslog", "wazuh-agent"],
+  "disallowed_services": ["telnet", "tftp", "avahi-daemon", "cups"],
+  "required_ports": {
+    "tcp": [22, 1514, 1515, 55000],
+    "udp": [53]
+  },
+  "required_env_vars": ["WAZUH_API_PASSWORD", "CALDERA_API_KEY"],
+  "required_log_paths": ["/var/log/auth.log", "/var/log/syslog"]
+}

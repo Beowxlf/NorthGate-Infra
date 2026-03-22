@@ -17,3 +17,8 @@ Prefer deterministic, idempotent scripts that are safe for CI use.
 - `promote_environment.sh`: Enforces allowed promotion path and required gate evidence (`ci_success`, `detection_validation_success`, `failure_validation_success`).
 - `rollback_environment.sh`: Records deterministic rollback execution target and version metadata.
 - `run_phase7_lifecycle_demo.sh`: Demonstrates deploy/promote/failure-block/rollback lifecycle contract.
+
+## Phase 8 Security Enforcement Scripts
+- `run_compliance_checks.sh`: Executes deterministic policy compliance checks, drift gates, and writes `artifacts/compliance-report.json`.
+- `security_policy.json`: Machine-readable policy contract consumed by compliance validation.
+

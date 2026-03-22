@@ -1,4 +1,7 @@
 ---
+- name: Phase 8 hardening convergence gate
+  import_playbook: security_enforcement.yml
+
 - name: Phase 5 system integrity hooks from control plane
   hosts: control_plane[0]
   gather_facts: false

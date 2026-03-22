@@ -1,0 +1,14 @@
+---
+galaxy_info:
+  author: NorthGate Infra
+  description: Deterministic OS hardening baseline and policy enforcement role.
+  min_ansible_version: "2.15"
+  license: MIT
+  platforms:
+    - name: EL
+      versions: ["8", "9"]
+    - name: Debian
+      versions: ["11", "12"]
+    - name: Ubuntu
+      versions: ["22.04", "24.04"]
+dependencies: []
